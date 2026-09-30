@@ -281,49 +281,10 @@ formatoTelefono(
 // CONVERTIR A MAYÚSCULAS
 // =========================
 
-function convertirMayusculas(input) {
-
-    if(!input) return;
-
-    input.addEventListener("input", function() {
-
+document.querySelectorAll(
+    'input[type="text"], textarea'
+) .forEach(function(input) {
+    input.addEventListener("input", function(){
         this.value = this.value.toUpperCase();
-
     });
-}
-
-convertirMayusculas(
-    document.querySelector('input[name="ap_pat"]')
-);
-
-convertirMayusculas(
-    document.querySelector('input[name="ap_mat"]')
-);
-
-convertirMayusculas(
-    document.querySelector('input[name="nombres"]')
-);
-
-convertirMayusculas(
-    document.querySelector('input[name="calle"]')
-);
-
-convertirMayusculas(
-    document.querySelector('input[name="num"]')
-);
-
-convertirMayusculas(
-    document.querySelector('input[name="colonia"]')
-);
-
-convertirMayusculas(
-    document.querySelector('input[name="tutor_ap_pat"]')
-);
-
-convertirMayusculas(
-    document.querySelector('input[name="tutor_ap_mat"]')
-);
-
-convertirMayusculas(
-    document.querySelector('input[name="tutor_nombre"]')
-);
+});

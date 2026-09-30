@@ -12,6 +12,9 @@ require_once "../config/conexion.php";
 <!DOCTYPE html>
 <html lang="es">
     <head>
+        <style>
+            body { text-transform: uppercase;}
+        </style>
         <meta charset="UTF-8">
         <Title> Registrar Paciente</Title>
     </head>
@@ -102,7 +105,7 @@ require_once "../config/conexion.php";
             <br><br>
 
             <label>NUMERO:</label><br>
-            <input type="text" name="num" required>
+            <input type="text" name="num" inputmode="numeric" required>
             <br><br>
 
             <label>COLONIA:</label><br>
@@ -188,7 +191,7 @@ require_once "../config/conexion.php";
                 <br><br>
 
                 <label>NUMERO: </label><br>
-                <input type="text" name="num_tutor">
+                <input type="text" name="num_tutor" inputmode="numeric">
                 <br><br>
 
                 <label>COLONIA: </label><br>

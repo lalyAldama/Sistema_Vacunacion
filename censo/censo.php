@@ -21,14 +21,14 @@ try {
     // DATOS DEL PACIENTE
     // =========================
 
-    $ap_pat = $_POST["ap_pat"];
-    $ap_mat = $_POST["ap_mat"];
-    $nombres = $_POST["nombres"];
+    $ap_pat = strtoupper($_POST["ap_pat"]);
+    $ap_mat = strtoupper($_POST["ap_mat"]);
+    $nombres = strtoupper($_POST["nombres"]);
     $fecha_nacimiento = $_POST["fecha_nacimiento"];
-    $sexo = $_POST["sexo"];
+    $sexo = strtoupper($_POST["sexo"]);
 
     $curp = !empty($_POST["curp"])
-        ? $_POST["curp"]
+        ? strtoupper($_POST["curp"])
         : NULL;
 
     $derechoabiencia = $_POST["derechoabiencia"];
@@ -42,9 +42,9 @@ try {
         ? $_POST["estatus_migratorio"]
         : "No aplica";
 
-    $calle = $_POST["calle"];
-    $num = $_POST["num"];
-    $colonia = $_POST["colonia"];
+    $calle = strtoupper($_POST["calle"]);
+    $num = strtoupper($_POST["num"]);
+    $colonia = strtoupper($_POST["colonia"]);
 
     $telefono_paciente = !empty($_POST["telefono_paciente"])
         ? $_POST["telefono_paciente"]
@@ -75,12 +75,13 @@ try {
     // =========================
 
     $id_tutor = NULL;
+    $parentesco= "No aplica";
 
     $fecha_nacimientoObj = new DateTime($fecha_nacimiento);
     $hoy = new DateTime();
 
     $edad = $hoy->diff($fecha_nacimientoObj)->y;
-
+    
 
     // =========================
     // TUTOR
@@ -89,19 +90,19 @@ try {
 
     if($edad <= 9){
 
-        $tutor_ap_pat = $_POST["tutor_ap_pat"];
-        $tutor_ap_mat = $_POST["tutor_ap_mat"];
-        $tutor_nombres = $_POST["tutor_nombre"];
+        $tutor_ap_pat = strtoupper($_POST["tutor_ap_pat"]);
+        $tutor_ap_mat = strtoupper($_POST["tutor_ap_mat"]);
+        $tutor_nombres = strtoupper($_POST["tutor_nombre"]);
         $tutor_fecha_nacimiento = $_POST["tutor_fecha_nacimiento"];
         $tutor_telefono = $_POST["tutor_telefono"];
-        $tutor_calle = $_POST["calle_tutor"];
-        $tutor_num = $_POST["num_tutor"];
-        $tutor_colonia = $_POST["colonia_tutor"];
+        $tutor_calle = strtoupper($_POST["calle_tutor"]);
+        $tutor_num = strtoupper($_POST["num_tutor"]);
+        $tutor_colonia = strtoupper($_POST["colonia_tutor"]);
         $parentesco = $_POST["parentesco"];
-        $tutor_sexo = $_POST["tutor_sexo"];
+        $tutor_sexo = strtoupper($_POST["tutor_sexo"]);
 
         $tutor_curp = !empty($_POST["tutor_curp"])
-            ? $_POST["tutor_curp"]
+            ? strtoupper($_POST["tutor_curp"])
             : NULL;
 
 
@@ -114,10 +115,9 @@ try {
             calle_tutor,
             num_tutor,
             colonia_tutor,
-            parentesco,
             sexo,
             curp
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?,?,?,?)";
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?,?,?)";
 
 
         $stmtTutor = $conexion->prepare($sqlTutor);
@@ -130,7 +130,7 @@ try {
 
 
         $stmtTutor->bind_param(
-            "sssssssssss",
+            "ssssssssss",
             $tutor_ap_pat,
             $tutor_ap_mat,
             $tutor_nombres,
@@ -139,7 +139,6 @@ try {
             $tutor_calle,
             $tutor_num,
             $tutor_colonia,
-            $parentesco,
             $tutor_sexo,
             $tutor_curp
         );
@@ -182,8 +181,9 @@ try {
         fecha_ultima_menstruacion,
         personal_salud,
         jornalero_agricola,
-        id_tutor
-    ) VALUES (?,?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        id_tutor,
+        parentesco
+    ) VALUES (?,?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
 
     $stmtPaciente = $conexion->prepare($sqlPaciente);
@@ -198,7 +198,7 @@ try {
   
 
     $stmtPaciente->bind_param(
-        "sssssssiisssssisiii",
+        "sssssssiisssssisiiis",
         $id_paciente,
         $ap_pat,
         $ap_mat,
@@ -217,7 +217,8 @@ try {
         $fecha_ultima_menstruacion,
         $personal_salud,
         $jornalero_agricola,
-        $id_tutor
+        $id_tutor,
+        $parentesco
     );
 
 
