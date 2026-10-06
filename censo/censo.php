@@ -105,58 +105,93 @@ try {
             ? strtoupper($_POST["tutor_curp"])
             : NULL;
 
-
-        $sqlTutor = "INSERT INTO TUTOR (
-            ap_pat,
-            ap_mat,
-            nombres,
-            fecha_nacimiento,
-            telefono_tutor,
-            calle_tutor,
-            num_tutor,
-            colonia_tutor,
-            sexo,
-            curp
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?,?,?)";
-
-
-        $stmtTutor = $conexion->prepare($sqlTutor);
-
-        if(!$stmtTutor){
-            throw new Exception(
-                "Error al preparar tutor: " . $conexion->error
+        //Buscar Tutor existente 
+        $sql_BuscarTutor= "SELECT id_tutor FROM TUTOR where ap_pat = ? AND ap_mat= ? AND nombres= ? AND fecha_nacimiento =?
+                           LIMIT 1";
+        $stmtBuscarTutor= $conexion->prepare($sql_BuscarTutor);
+        if(!$stmtBuscarTutor){
+            throw new Exception (
+                "Error al buscar tutor" . $conexion->error
             );
         }
 
-
-        $stmtTutor->bind_param(
-            "ssssssssss",
+        $stmtBuscarTutor->bind_param(
+            "ssss",
             $tutor_ap_pat,
             $tutor_ap_mat,
             $tutor_nombres,
-            $tutor_fecha_nacimiento,
-            $tutor_telefono,
-            $tutor_calle,
-            $tutor_num,
-            $tutor_colonia,
-            $tutor_sexo,
-            $tutor_curp
+            $tutor_fecha_nacimiento
         );
 
-
-        if(!$stmtTutor->execute()){
+        if (!$stmtBuscarTutor->execute()){
             throw new Exception(
-                "Error al guardar tutor: " . $stmtTutor->error
+                "Error al buscar tutor" . $conexion->error
             );
         }
 
+        $stmtBuscarTutor->bind_result($id_tutor_encontrado);
+        $tutorEncontrado = $stmtBuscarTutor->fetch();
+         $stmtBuscarTutor->close();
 
-        // Obtener ID del tutor recién creado
-        $id_tutor = $conexion->insert_id;
+        
+        if($tutorEncontrado){
+            $id_tutor = $id_tutor_encontrado;
 
-        $stmtTutor->close();
+            //Actualizar datos del tutor
+            $sql_ActualizarTutor = "UPDATE TUTOR SET telefono_tutor = ?, calle_tutor = ?, num_tutor= ?, colonia_tutor = ?, curp= COALESCE(?, curp)
+                                    WHERE id_tutor= ?";
+            $stmt_ActualizarTutor = $conexion->prepare($sql_ActualizarTutor);
+            if (!$stmt_ActualizarTutor){
+                throw new Exception( "Error al preparar actualizacion " . $conexion->error);
+            }
+            $stmt_ActualizarTutor->bind_param(
+                "sssssi",
+                $tutor_telefono, $tutor_calle, $tutor_num, $tutor_colonia, $tutor_curp, $id_tutor
+            );
+
+            if(!$stmt_ActualizarTutor->execute()){
+                throw new Exception( "Error al actualizar tutor: " . $conexion->error);
+            }
+            $stmt_ActualizarTutor->close();
+        } else {
+            $sqlTutor= "INSERT INTO TUTOR (
+                        ap_pat, ap_mat, nombres, fecha_nacimiento, telefono_tutor, sexo, curp,
+                        calle_tutor, num_tutor, colonia_tutor)
+                        VALUES (?,?,?,?,?,?,?,?,?,?)";
+            
+            $stmtTutor= $conexion->prepare($sqlTutor);
+            if(!$stmtTutor) {
+                throw new Exception(
+                    "Error al preparar tutor" . $conexion->error
+                );
+            }
+
+            $stmtTutor->bind_param(
+                "ssssssssss",
+                $tutor_ap_pat,
+                $tutor_ap_mat,
+                $tutor_nombres,
+                $tutor_fecha_nacimiento,
+                $tutor_telefono,
+                $tutor_sexo,
+                $tutor_curp,
+                $tutor_calle,
+                $tutor_num,
+                $tutor_colonia
+            );
+
+            if(!$stmtTutor->execute()){
+                throw new ErrorException("Error al guardar tutor" . $conexion->error);
+            }
+
+            $id_tutor = $conexion->insert_id;
+            $stmtTutor->close();
+        }
+       
+
+
+
     }
-
 
     // =========================
     // INSERTAR PACIENTE
@@ -229,6 +264,36 @@ try {
     }
 
     $stmtPaciente->close();
+
+    //ASIGNAR PACIENTE AL CENSO QUE LE CORRESPONDE.
+    if ($embarazo == 1 || $edad >=20){
+        $id_censo = 3;
+    } elseif ($edad >=10){
+        $id_censo = 2;
+    } else {
+        $id_censo= 1;
+    }
+
+    $sqlPacienteCenso = "INSERT INTO PACIENTE_CENSO (id_paciente, id_censo) VALUES(?,?)";
+
+    $stmtPacienteCenso = $conexion->prepare($sqlPacienteCenso);
+
+    if (!$stmtPacienteCenso){
+        throw new Exception("Error al preparar" . $conexion->error);
+    }
+
+    $stmtPacienteCenso->bind_param(
+        "si", $id_paciente, $id_censo
+    );
+
+    if(!$stmtPacienteCenso->execute()){
+        throw new Exception(
+            "Error al asignar paciente al censo " . $conexion->error
+        );
+    }
+
+    $stmtPacienteCenso->close();
+
 
     //comorbilidades
     if(isset($_POST["comorbilidades"]) && is_array($_POST["comorbilidades"])) {

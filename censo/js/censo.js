@@ -227,14 +227,12 @@ function actualizarTutor() {
 
             campo.required = false;
             campo.disabled = true;
-            campo.value = "";
 
         });
     }
 }
 
 fechaNacimiento.addEventListener("change", actualizarTutor);
-
 
 // =========================
 // FORMATO DE TELÉFONO
@@ -288,3 +286,10 @@ document.querySelectorAll(
         this.value = this.value.toUpperCase();
     });
 });
+
+if(fechaNacimiento && fechaNacimiento.value){
+    fechaNacimiento.dispatchEvent(new Event("change"));
+    sexo.dispatchEvent(new Event("change"));
+    EsMigrante.dispatchEvent(new Event("change"));
+    embarazo.dispatchEvent(new Event("change"));
+}

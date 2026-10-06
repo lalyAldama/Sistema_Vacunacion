@@ -33,7 +33,7 @@ if($_SERVER["REQUEST_METHOD"] == "POST") {
     $fecha_caducidad = $_POST['fecha_caducidad'];
     $cantidad_frascos = $_POST['cantidad_frascos'];
     $fecha_movimiento = $_POST['fecha_movimiento'];
-    $necesidad = $_POST['necesidad'];
+    $necesidad = 0;
     $id_unidad = $_POST['id_unidad'];
 
 //Dosis por frasco
@@ -74,9 +74,9 @@ if($_SERVER["REQUEST_METHOD"] == "POST") {
         $id_lote= $conexion ->insert_id;
 
         $sql_movimiento = "INSERT INTO MOVIMIENTO_BIOLOGICO(
-                            id_unidad, id_lote, tipo_movimiento, cantidad_frascos, cantidad_dosis
+                            id_unidad, id_lote, tipo_movimiento, cantidad_frascos, cantidad_dosis,
                             fecha_movimiento, necesidad)
-                            VALUES (?, ?, 'Entrada', ?,?,?,?";
+                            VALUES (?, ?, 'Entrada', ?,?,?,?)";
         $stmt_movimiento = $conexion->prepare($sql_movimiento);
 
         $stmt_movimiento->bind_param(
@@ -152,7 +152,7 @@ if($_SERVER["REQUEST_METHOD"] == "POST") {
             <br><br>
 
             <label>CANTIDAD DE FRASCOS </label>
-            <input type="text" name="cantidad_de_frascos", min="1" required>
+            <input type="text" name="cantidad_frascos" min="1" required>
             <br><br>
 
             <label>FECHA DE ENTRADA</label>
