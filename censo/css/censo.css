@@ -1,0 +1,425 @@
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    padding: 20px;
+    background: #eeeeee;
+    color: #111;
+    font-family: Arial, Helvetica, sans-serif;
+}
+
+.pagina {
+    width: 100%;
+}
+
+.barra-superior {
+    background: #ffffff;
+    border: 1px solid #999;
+    padding: 15px 18px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 15px;
+}
+
+.barra-superior h1 {
+    margin: 0;
+    font-size: 24px;
+}
+
+.unidad {
+    margin-top: 5px;
+    font-weight: bold;
+}
+
+.panel-filtros {
+    margin-top: 12px;
+    padding: 14px;
+    background: #ffffff;
+    border: 1px solid #aaa;
+}
+
+.buscador {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.buscador input {
+    width: 420px;
+    max-width: 100%;
+    padding: 9px;
+    border: 1px solid #888;
+    font-size: 14px;
+}
+
+.filtros-censo {
+    margin-top: 10px;
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.btn {
+    display: inline-block;
+    border: 0;
+    border-radius: 4px;
+    padding: 9px 13px;
+    text-decoration: none;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.btn-azul {
+    background: #4472c4;
+    color: #fff;
+}
+
+.btn-verde {
+    background: #548235;
+    color: #fff;
+}
+
+.btn-censo {
+    background: #5b9bd5;
+    color: #fff;
+}
+
+.btn-editar {
+    display: inline-block;
+    background: #70ad47;
+    color: #fff;
+    text-decoration: none;
+    padding: 5px 8px;
+    border-radius: 3px;
+    font-weight: bold;
+    white-space: nowrap;
+}
+
+.encabezado-oficial {
+    margin-top: 14px;
+    padding: 12px;
+    background: #fff;
+    border: 1px solid #888;
+    text-align: center;
+    font-size: 13px;
+    line-height: 1.55;
+}
+
+.tabla-scroll {
+    width: 100%;
+    overflow-x: auto;
+    margin-top: 12px;
+    background: #fff;
+    border: 1px solid #777;
+}
+
+.censo {
+    border-collapse: collapse;
+    width: max-content;
+    min-width: 2600px;
+    table-layout: fixed;
+    font-size: 10px;
+}
+
+.censo th,
+.censo td {
+    border: 1px solid #555;
+    padding: 3px;
+    text-align: center;
+    vertical-align: middle;
+    overflow-wrap: anywhere;
+}
+
+.censo th {
+    background: #d9e2f3;
+    font-weight: bold;
+}
+
+.censo thead th {
+    height: 28px;
+}
+
+.censo .encabezado-vacuna {
+    background: #e2f0d9;
+}
+
+.fila-paciente td {
+    background: #fff;
+}
+
+.fila-secundaria td,
+.fila-acompanante td {
+    background: #f7f7f7;
+}
+
+.fila-acompanante {
+    min-height: 24px;
+}
+
+.marca-dato {
+    font-weight: bold;
+}
+
+.celda-curp {
+    text-align: left !important;
+    font-weight: bold;
+}
+
+.ubicacion-secundaria {
+    font-size: 9px;
+    color: #555;
+}
+
+.parentesco {
+    text-align: left !important;
+    font-weight: bold;
+}
+
+.vacuna-dato {
+    min-width: 72px;
+}
+
+.aplicacion-hoy {
+    color: red !important;
+    font-weight: bold;
+}
+
+.observaciones {
+    min-width: 180px;
+    max-width: 240px;
+    white-space: normal;
+}
+
+.sin-resultados,
+.sin-seleccion {
+    background: #fff;
+    border: 1px solid #aaa;
+    margin-top: 14px;
+    padding: 30px;
+    text-align: center;
+    font-size: 16px;
+}
+
+@media (max-width: 700px) {
+
+    body {
+        padding: 8px;
+    }
+
+    .barra-superior {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .buscador input {
+        width: 100%;
+    }
+}
+
+/* =====================================================
+   RESULTADOS DE BÚSQUEDA
+===================================================== */
+
+.panel-resultados {
+    margin-top: 14px;
+    padding: 16px;
+    background: #ffffff;
+    border: 1px solid #aaa;
+}
+
+.panel-resultados h2 {
+    margin-top: 0;
+}
+
+.tabla-resultados-scroll {
+    width: 100%;
+    overflow-x: auto;
+}
+
+.tabla-resultados {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 12px;
+}
+
+.tabla-resultados th,
+.tabla-resultados td {
+    border: 1px solid #777;
+    padding: 8px;
+    text-align: left;
+}
+
+.tabla-resultados th {
+    background: #d9e2f3;
+}
+
+.btn-editar-secundario {
+    background: #7f7f7f;
+    margin-left: 5px;
+}
+
+.resultado-individual {
+    margin-top: 12px;
+    padding: 10px 12px;
+    background: #fff;
+    border: 1px solid #aaa;
+}
+
+.ubicacion-label {
+    text-align: left !important;
+    font-weight: normal;
+}
+
+.fila-acompanante td {
+    background: #f7f7f7;
+}
+
+.marca-acompanante {
+    font-weight: bold;
+    font-size: 12px;
+}
+
+
+/* =====================================================
+   ENCABEZADO EDITABLE
+===================================================== */
+.encabezado-editable [contenteditable="true"] {
+    outline: none;
+    cursor: text;
+}
+.encabezado-editable [contenteditable="true"]:focus {
+    outline: 1px dashed #4472c4;
+    background: #fffbea;
+}
+.aviso-edicion {
+    display: block;
+    margin-top: 5px;
+    color: #777;
+    font-size: 10px;
+    font-weight: normal;
+}
+
+/* =====================================================
+   PIE DEL CENSO BASADO EN pie_formato.xlsx
+===================================================== */
+.pie-censo {
+    margin-top: 12px;
+    border: 1px solid #555;
+    background: #fff;
+    display: grid;
+    grid-template-columns: minmax(230px, 1.1fr) minmax(300px, 1.5fr) minmax(130px, .65fr) minmax(300px, 1.4fr);
+    width: 100%;
+    min-width: 1100px;
+    font-size: 10px;
+    line-height: 1.35;
+}
+.pie-columna {
+    padding: 7px;
+    border-right: 1px solid #777;
+    min-width: 0;
+}
+.pie-columna:last-child {
+    border-right: 0;
+}
+.pie-censo h3 {
+    font-size: 10px;
+    margin: 4px 0 5px;
+    font-weight: bold;
+}
+.pie-censo p {
+    margin: 3px 0 6px;
+}
+.pie-parentesco {
+    border-top: 1px solid #999;
+    margin-top: 8px;
+    padding-top: 5px;
+}
+.parentesco-lista {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 3px 8px;
+    margin-top: 5px;
+}
+.derechohabiencia-lista {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 3px 8px;
+    margin-bottom: 8px;
+}
+.pie-codigos p {
+    border-bottom: 1px solid #ddd;
+    padding: 2px 0;
+}
+.pie-observaciones {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.pie-observaciones [contenteditable="true"],
+.pie-columna [contenteditable="true"] {
+    outline: none;
+    cursor: text;
+}
+.pie-observaciones [contenteditable="true"]:focus,
+.pie-columna [contenteditable="true"]:focus {
+    outline: 1px dashed #4472c4;
+    background: #fffbea;
+}
+.nota-vph,
+.nota-influenza {
+    text-align: justify;
+}
+.firmas {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 15px;
+    margin-top: auto;
+    padding-top: 12px;
+}
+.firma {
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    gap: 5px;
+}
+.linea-firma {
+    min-height: 28px;
+    border-bottom: 1px solid #333;
+}
+.firma strong {
+    font-size: 9px;
+}
+.nota-edicion-pie {
+    margin: 5px 0 12px;
+    color: #777;
+    font-size: 10px;
+}
+@media print {
+    body {
+        background: #fff;
+        padding: 0;
+    }
+    .barra-superior,
+    .panel-filtros,
+    .aviso-edicion,
+    .nota-edicion-pie,
+    .resultado-individual {
+        display: none !important;
+    }
+    .encabezado-oficial,
+    .pie-censo {
+        break-inside: avoid;
+    }
+    .encabezado-editable [contenteditable="true"]:focus,
+    .pie-censo [contenteditable="true"]:focus {
+        outline: none;
+        background: transparent;
+    }
+    .tabla-scroll {
+        overflow: visible;
+    }
+}

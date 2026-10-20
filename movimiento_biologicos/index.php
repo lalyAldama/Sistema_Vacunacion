@@ -7,6 +7,7 @@
     <meta charset="UTF-8">
 
     <title>Movimiento de Biologicos</title>
+    <link rel="stylesheet" href="../css/estilos.css">
 
 </head>
 

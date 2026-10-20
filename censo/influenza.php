@@ -1,0 +1,409 @@
+<?php
+/**
+ * Censo automático de influenza estacional.
+ * Archivo independiente: no modifica index.php ni censo.php.
+ * Requiere la conexión existente en ../config/conexion.php y mysqli $conexion.
+ */
+session_start();
+
+if (!isset($_SESSION['id_usuario'])) {
+    header('Location: ../index.php');
+    exit;
+}
+
+require_once __DIR__ . '/../config/conexion.php';
+
+if (!isset($conexion) || !($conexion instanceof mysqli)) {
+    http_response_code(500);
+    exit('No se encontró la conexión mysqli $conexion en ../config/conexion.php.');
+}
+$conexion->set_charset('utf8mb4');
+
+function h($valor): string {
+    return htmlspecialchars((string)($valor ?? ''), ENT_QUOTES, 'UTF-8');
+}
+function edadDetalle(?string $fecha): array {
+    if (!$fecha || $fecha === '0000-00-00') return [null, null];
+    try {
+        $nacimiento = new DateTime($fecha);
+        $hoy = new DateTime('today');
+        if ($nacimiento > $hoy) return [null, null];
+        $d = $nacimiento->diff($hoy);
+        return [$d->y, ($d->y * 12) + $d->m];
+    } catch (Throwable $e) {
+        return [null, null];
+    }
+}
+function fechaDMY(?string $fecha): string {
+    if (!$fecha || $fecha === '0000-00-00') return '';
+    $t = strtotime($fecha);
+    return $t ? date('d/m/Y', $t) : '';
+}
+
+$pacientes = [];
+$error = '';
+
+/* Se consulta PACIENTE una sola vez: el censo especial no crea ni duplica pacientes. */
+$sqlPacientes = "SELECT p.id_paciente, p.ap_pat, p.ap_mat, p.nombres,
+                        p.fecha_nacimiento, p.sexo, p.calle, p.num, p.colonia,
+                        p.telefono_paciente, p.embarazo, p.personal_salud,
+                        p.derechoabiencia
+                 FROM PACIENTE p
+                 ORDER BY p.ap_pat, p.ap_mat, p.nombres";
+$resultado = $conexion->query($sqlPacientes);
+if (!$resultado) {
+    $error = 'No se pudieron consultar los pacientes: ' . $conexion->error;
+} else {
+    while ($p = $resultado->fetch_assoc()) {
+        [$edadAnios, $edadMeses] = edadDetalle($p['fecha_nacimiento'] ?? null);
+        $p['edad_anios'] = $edadAnios;
+        $p['edad_meses'] = $edadMeses;
+        $p['grupos_objetivo'] = [];
+        $p['grupos_riesgo'] = [];
+        $p['elegible'] = false;
+
+        // Grupos objetivo tal como aparecen en el Excel de la temporada 2025-2026.
+        if ($edadMeses !== null && $edadMeses >= 6 && $edadMeses <= 59) {
+            $p['grupos_objetivo'][] = '6 a 59 meses';
+        }
+        if ($edadAnios !== null && $edadAnios >= 60) {
+            $p['grupos_objetivo'][] = '60 y más';
+        }
+        if ((int)($p['embarazo'] ?? 0) === 1) {
+            $p['grupos_objetivo'][] = 'Embarazadas';
+        }
+        if ((int)($p['personal_salud'] ?? 0) === 1) {
+            $p['grupos_objetivo'][] = 'Personal de salud';
+        }
+
+        // Los nombres se obtienen del catálogo para respetar la información guardada.
+        $sqlRiesgo = "SELECT c.id_comorbilidad, c.nombre_comorbilidad
+                      FROM PACIENTE_COMORBILIDAD pc
+                      INNER JOIN COMORBILIDAD c ON c.id_comorbilidad = pc.id_comorbilidad
+                      WHERE pc.id_paciente = ?
+                      ORDER BY c.nombre_comorbilidad";
+        $stmtRiesgo = $conexion->prepare($sqlRiesgo);
+        if ($stmtRiesgo) {
+            $stmtRiesgo->bind_param('s', $p['id_paciente']);
+            $stmtRiesgo->execute();
+            $resRiesgo = $stmtRiesgo->get_result();
+            while ($r = $resRiesgo->fetch_assoc()) {
+                $p['grupos_riesgo'][] = $r['nombre_comorbilidad'];
+            }
+            $stmtRiesgo->close();
+        }
+
+        // Se incluye por grupo objetivo o por al menos un grupo de riesgo registrado.
+        $p['elegible'] = !empty($p['grupos_objetivo']) || !empty($p['grupos_riesgo']);
+        if ($p['elegible']) $pacientes[] = $p;
+    }
+    $resultado->free();
+}
+
+// Buscar aplicaciones relacionadas con biológicos cuyo nombre incluya INFLUENZA, COVID o NEUMO.
+// Los nombres se identifican desde BIOLOGICO, sin asumir IDs fijos del catálogo.
+function obtenerAplicaciones(mysqli $conexion, string $idPaciente): array {
+    $sql = "SELECT av.fecha_aplicacion, av.dosis_cero, av.observaciones,
+                   b.nombre_biologico, d.nombre_dosis, l.numero_lote
+            FROM APLICACION_VACUNA av
+            INNER JOIN ESQUEMA_BIOLOGICO_DOSIS ebd
+                ON ebd.id_esquema_biologico_dosis = av.id_esquema_biologico_dosis
+            INNER JOIN ESQUEMA_BIOLOGICO eb
+                ON eb.id_esquema_biologico = ebd.id_esquema_biologico
+            INNER JOIN BIOLOGICO b ON b.id_biologico = eb.id_biologico
+            INNER JOIN DOSIS d ON d.id_dosis = ebd.id_dosis
+            LEFT JOIN LOTE l ON l.id_lote = av.id_lote
+            WHERE av.id_paciente = ?
+              AND (UPPER(b.nombre_biologico) LIKE '%INFLUENZA%'
+                   OR UPPER(b.nombre_biologico) LIKE '%COVID%'
+                   OR UPPER(b.nombre_biologico) LIKE '%NEUMO%')
+            ORDER BY av.fecha_aplicacion DESC";
+    $lista = [];
+    $stmt = $conexion->prepare($sql);
+    if (!$stmt) return $lista;
+    $stmt->bind_param('s', $idPaciente);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    while ($fila = $res->fetch_assoc()) $lista[] = $fila;
+    $stmt->close();
+    return $lista;
+}
+
+$busqueda = trim($_GET['buscar'] ?? '');
+if ($busqueda !== '') {
+    $pacientes = array_values(array_filter($pacientes, function ($p) use ($busqueda) {
+        $nombre = trim(($p['ap_pat'] ?? '') . ' ' . ($p['ap_mat'] ?? '') . ' ' . ($p['nombres'] ?? ''));
+        $domicilio = trim(($p['calle'] ?? '') . ' ' . ($p['num'] ?? '') . ' ' . ($p['colonia'] ?? ''));
+        return mb_stripos($nombre, $busqueda) !== false || mb_stripos($domicilio, $busqueda) !== false;
+    }));
+}
+
+$mesActual = (int)date('n');
+$temporadaActiva = ($mesActual >= 10 || $mesActual <= 3);
+?>
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Censo Nominal, vacunación para la temporada invernal 2025-2026</title>
+<link rel="stylesheet" href="css/censo.css">
+<style>
+.encabezado-influenza{margin-top:12px;padding:12px;background:#fff;border:1px solid #888;text-align:center;font-size:13px;line-height:1.5}
+.datos-administrativos{display:grid;grid-template-columns:repeat(4,minmax(130px,1fr));gap:6px 14px;text-align:left;margin-top:10px}
+.datos-administrativos div{border-bottom:1px solid #aaa;min-height:23px}
+.tabla-scroll{overflow-x:auto}
+.censo-influenza{border-collapse:collapse;width:max-content;min-width:2600px;table-layout:fixed;font-size:10px;background:#fff}
+.censo-influenza th,.censo-influenza td{border:1px solid #555;padding:3px;text-align:center;vertical-align:middle;overflow-wrap:anywhere}
+.censo-influenza th{background:#d9e2f3;font-weight:bold}
+.censo-influenza .grupo-principal{background:#d9e2f3}
+.censo-influenza .grupo-objetivo{background:#e2f0d9}
+.censo-influenza .grupo-riesgo{background:#fce4d6}
+.censo-influenza .grupo-vacuna{background:#e2f0d9}
+.censo-influenza .nombre{text-align:left;min-width:115px}
+.censo-influenza .domicilio{text-align:left;min-width:120px}
+.censo-influenza .curp-nota td{height:15px;text-align:left;background:#f7f7f7}
+.censo-influenza .marca{font-weight:bold}
+.censo-influenza .sin-dato{color:#777}
+.censo-influenza .celda-vacuna{min-width:130px;text-align:left}
+.acciones-influenza{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.aviso-influenza{margin-top:12px;padding:10px;background:#fff8e1;border:1px solid #d6b656}
+.encabezado-editable [contenteditable="true"]{outline:none;cursor:text;border-radius:2px}
+.encabezado-editable [contenteditable="true"]:hover{background:#fffbea;outline:1px dashed #aaa}
+.encabezado-editable [contenteditable="true"]:focus{background:#fffbea;outline:1px dashed #4472c4}
+.ayuda-edicion{font-size:10px;color:#777;margin-top:7px}
+.botones-edicion{display:flex;gap:7px;justify-content:flex-end;margin-top:7px}
+@media print{.ayuda-edicion,.botones-edicion{display:none!important}}
+@media(max-width:700px){.datos-administrativos{grid-template-columns:1fr 1fr}}
+@media print{body{background:#fff;padding:0}.barra-superior,.panel-filtros,.aviso-influenza,.pie-influenza{display:none!important}.encabezado-influenza{break-inside:avoid}.tabla-scroll{overflow:visible}.censo-influenza{font-size:8px}}
+</style>
+</head>
+<body>
+<div class="pagina">
+    <div class="barra-superior">
+        <div>
+            <h1>CENSO NOMINAL DE INFLUENZA</h1>
+            <div class="unidad">Vacunación para la temporada invernal 2025–2026</div>
+        </div>
+        <div class="acciones-influenza">
+            <a class="btn btn-censo" href="index.php">VOLVER AL CENSO</a>
+            <button class="btn btn-verde" type="button" onclick="window.print()">IMPRIMIR</button>
+        </div>
+    </div>
+
+    <?php if (!$temporadaActiva): ?>
+        <div class="aviso-influenza">La temporada de influenza suele abarcar de octubre a marzo. Verifica los lineamientos y el periodo activo que indique tu jurisdicción.</div>
+    <?php endif; ?>
+    <?php if ($error !== ''): ?>
+        <div class="sin-resultados"><?= h($error) ?></div>
+    <?php endif; ?>
+
+    <div class="panel-filtros">
+        <form class="buscador" method="get" action="influenza.php">
+            <input type="text" name="buscar" value="<?= h($busqueda) ?>" placeholder="Buscar por nombre o domicilio">
+            <button class="btn btn-azul" type="submit">BUSCAR</button>
+        </form>
+    </div>
+
+    <div class="encabezado-influenza encabezado-editable" id="encabezadoEditable">
+        <strong contenteditable="true" data-edit-key="institucion-linea1">Subsecretaría de Políticas de Salud y Bienestar Poblacional</strong><br>
+        <span contenteditable="true" data-edit-key="institucion-linea2">Centro Nacional para la Salud de la Infancia y la Adolescencia</span><br>
+        <span contenteditable="true" data-edit-key="institucion-linea3">Programa de Vacunación Universal</span><br>
+        <strong contenteditable="true" data-edit-key="titulo-formato">Censo Nominal, vacunación para la temporada invernal 2025-2026</strong>
+        <div class="datos-administrativos">
+            <div>Entidad Federativa: <strong contenteditable="true" data-edit-key="entidad">CHIHUAHUA</strong></div>
+            <div>Institución: <strong contenteditable="true" data-edit-key="institucion">SSCH</strong></div>
+            <div>Jurisdicción/Distrito de Salud/Delegación: <strong contenteditable="true" data-edit-key="jurisdiccion">3 PARRAL</strong></div>
+            <div>Municipio: <strong contenteditable="true" data-edit-key="municipio">HIDALGO DEL PARRAL</strong></div>
+            <div>Localidad: <strong contenteditable="true" data-edit-key="localidad">HIDALGO DEL PARRAL</strong></div>
+            <div>Unidad de Salud: <strong contenteditable="true" data-edit-key="unidad">________________</strong></div>
+            <div>AGEB: <strong contenteditable="true" data-edit-key="ageb">__________</strong></div>
+            <div>Sector: <strong contenteditable="true" data-edit-key="sector">__________</strong></div>
+            <div>Fecha (dd/mm/aaaa): <strong contenteditable="true" data-edit-key="fecha"><?= date('d/m/Y') ?></strong></div>
+            <div>Nombre del vacunador: <strong contenteditable="true" data-edit-key="vacunador">____________________</strong></div>
+        </div>
+        <div class="ayuda-edicion">Puedes hacer clic sobre los textos del encabezado para editarlos. Los cambios se guardan en este navegador.</div>
+        <div class="botones-edicion">
+            <button class="btn btn-azul" type="button" id="guardarEncabezado">GUARDAR ENCABEZADO</button>
+            <button class="btn btn-censo" type="button" id="restaurarEncabezado">RESTAURAR TEXTO ORIGINAL</button>
+        </div>
+    </div>
+
+    <div class="tabla-scroll">
+    <table class="censo-influenza">
+        <thead>
+        <tr>
+            <th rowspan="2">No.</th>
+            <th colspan="3" class="grupo-principal">NOMBRE</th>
+            <th colspan="3" class="grupo-principal">FECHA DE NACIMIENTO</th>
+            <th colspan="2" class="grupo-principal">EDAD</th>
+            <th rowspan="2">SEXO</th>
+            <th rowspan="2">FECHA DE APLICACIÓN</th>
+            <th colspan="3" class="grupo-principal">DOMICILIO</th>
+            <th colspan="2" class="grupo-objetivo">GRUPO OBJETIVO</th>
+            <th colspan="15" class="grupo-riesgo">GRUPO DE RIESGO***</th>
+            <th rowspan="2" class="grupo-riesgo">OTROS GRUPOS DE RIESGO</th>
+            <th colspan="3" class="grupo-vacuna">ESQUEMA DE VACUNACIÓN ANTI INFLUENZA ESTACIONAL</th>
+            <th class="grupo-vacuna">ESQUEMA DE VACUNACIÓN CONTRA LA COVID-19</th>
+            <th class="grupo-vacuna">ESQUEMA DE VACUNACIÓN ANTINEUMOCÓCICA</th>
+            <th rowspan="2">NO. DE LOTE</th>
+            <th rowspan="2">DERECHOHABIENCIA</th>
+        </tr>
+        <tr>
+            <th>PATERNO</th><th>MATERNO</th><th>NOMBRE</th>
+            <th>DÍA</th><th>MES</th><th>AÑO</th>
+            <th>AÑOS</th><th>MESES</th>
+            <th>CALLE</th><th>No.</th><th>COLONIA</th>
+            <th>6 A 59 MESES*</th><th>60 Y MÁS</th>
+            <th>EMBARAZADAS</th><th>PERSONAL DE SALUD</th><th>VIH/sida</th>
+            <th>DIABETES MELLITUS</th><th>OBESIDAD MÓRBIDA</th><th>CARDIOPATÍAS AGUDAS O CRÓNICAS</th>
+            <th>ENFERMEDAD PULMONAR CRÓNICA, INCLUYE EPOC Y ASMA</th><th>CÁNCER</th>
+            <th>ENFERMEDADES CARDIACAS O PULMONARES CONGÉNITAS U OTROS PADECIMIENTOS CRÓNICOS QUE REQUIERAN CONSUMO PROLONGADO DE SALICILATOS*</th>
+            <th>INSUFICIENCIA RENAL</th><th>INMUNOSUPRESIÓN ADQUIRIDA POR ENFERMEDAD O TRATAMIENTO, EXCEPTO VIH/sida</th>
+            <th>HIPERTENSIÓN ARTERIAL ESENCIAL**</th><th>PERSONAS CON DISCAPACIDAD**</th>
+            <th>PERSONAS CON TRASPLANTE DE ÓRGANOS**</th><th>FIBROSIS QUÍSTICA**</th>
+            <th>1A DOSIS</th><th>2A DOSIS</th><th>DOSIS ANUAL</th>
+            <th>DOSIS ÚNICA</th><th>DOSIS ÚNICA</th>
+        </tr>
+        </thead>
+        <tbody>
+        <?php if (!$pacientes): ?>
+            <tr><td colspan="39" class="sin-dato">No hay pacientes que cumplan los criterios registrados<?= $busqueda !== '' ? ' para esta búsqueda' : '' ?>.</td></tr>
+        <?php else: ?>
+            <?php foreach ($pacientes as $i => $p): ?>
+                <?php
+                    $apps = obtenerAplicaciones($conexion, $p['id_paciente']);
+                    $fechaNac = $p['fecha_nacimiento'] ?? '';
+                    $tsNac = $fechaNac ? strtotime($fechaNac) : false;
+                    $diaNac = $tsNac ? date('d', $tsNac) : '';
+                    $mesNac = $tsNac ? date('m', $tsNac) : '';
+                    $anioNac = $tsNac ? date('Y', $tsNac) : '';
+                    $riesgosTexto = mb_strtolower(implode(' | ', $p['grupos_riesgo'] ?? []));
+                    $objetivosTexto = mb_strtolower(implode(' | ', $p['grupos_objetivo'] ?? []));
+                    $aplicacionInfluenza = null;
+                    $aplicacionCovid = null;
+                    $aplicacionNeumo = null;
+                    foreach ($apps as $app) {
+                        $bio = mb_strtolower($app['nombre_biologico'] ?? '');
+                        if (str_contains($bio, 'influenza') && $aplicacionInfluenza === null) $aplicacionInfluenza = $app;
+                        if (str_contains($bio, 'covid') && $aplicacionCovid === null) $aplicacionCovid = $app;
+                        if ((str_contains($bio, 'neumo') || str_contains($bio, 'neumoc')) && $aplicacionNeumo === null) $aplicacionNeumo = $app;
+                    }
+                    $fechaAplicacion = $aplicacionInfluenza['fecha_aplicacion'] ?? ($aplicacionCovid['fecha_aplicacion'] ?? ($aplicacionNeumo['fecha_aplicacion'] ?? ''));
+                    $lotes = [];
+                    foreach ($apps as $app) {
+                        $bio = mb_strtolower($app['nombre_biologico'] ?? '');
+                        if (str_contains($bio, 'influenza') || str_contains($bio, 'covid') || str_contains($bio, 'neumo')) {
+                            if (!empty($app['numero_lote'])) $lotes[] = $app['numero_lote'];
+                        }
+                    }
+                    $tieneRiesgo = function(array $palabras) use ($riesgosTexto): bool {
+                        foreach ($palabras as $palabra) if (str_contains($riesgosTexto, mb_strtolower($palabra))) return true;
+                        return false;
+                    };
+                    $tieneObjetivo = function(array $palabras) use ($objetivosTexto): bool {
+                        foreach ($palabras as $palabra) if (str_contains($objetivosTexto, mb_strtolower($palabra))) return true;
+                        return false;
+                    };
+                    $marcar = function(bool $valor): string { return $valor ? '<strong class="marca-grupo">X</strong>' : ''; };
+                    $edadAnios = $p['edad_anios'];
+                    $edadMesesRestantes = $edadAnios !== null ? ((int)$p['edad_meses'] % 12) : null;
+                    $appsInfluenza = array_values(array_filter($apps, fn($a) => str_contains(mb_strtolower($a['nombre_biologico'] ?? ''), 'influenza')));
+                    $dosisInfluenza = ['primera'=>null, 'segunda'=>null, 'anual'=>null];
+                    foreach ($appsInfluenza as $app) {
+                        $dosisTxt = mb_strtolower($app['nombre_dosis'] ?? '');
+                        if (str_contains($dosisTxt, '2') || str_contains($dosisTxt, 'segunda')) $dosisInfluenza['segunda'] = $app;
+                        elseif (str_contains($dosisTxt, '1') || str_contains($dosisTxt, 'primera')) $dosisInfluenza['primera'] = $app;
+                        else $dosisInfluenza['anual'] = $app;
+                    }
+                    $mostrarApp = function($app): string {
+                        if (!$app) return '';
+                        return h(fechaDMY($app['fecha_aplicacion'] ?? '')) . ' ' . h($app['numero_lote'] ?? '');
+                    };
+                ?>
+                <tr>
+                    <td><?= $i + 1 ?></td>
+                    <td class="nombre"><?= h($p['ap_pat'] ?? '') ?></td>
+                    <td class="nombre"><?= h($p['ap_mat'] ?? '') ?></td>
+                    <td class="nombre"><?= h($p['nombres'] ?? '') ?></td>
+                    <td><?= h($diaNac) ?></td><td><?= h($mesNac) ?></td><td><?= h($anioNac) ?></td>
+                    <td><?= $edadAnios === null ? '' : (int)$edadAnios ?></td>
+                    <td><?= $edadMesesRestantes === null ? '' : (int)$edadMesesRestantes ?></td>
+                    <td><?= h($p['sexo'] ?? '') ?></td>
+                    <td><?= h(fechaDMY($fechaAplicacion)) ?></td>
+                    <td class="domicilio"><?= h($p['calle'] ?? '') ?></td><td><?= h($p['num'] ?? '') ?></td><td class="domicilio"><?= h($p['colonia'] ?? '') ?></td>
+                    <td><?= $marcar($tieneObjetivo(['6 a 59', '6-59', 'meses'])) ?></td>
+                    <td><?= $marcar($tieneObjetivo(['60 y más', '60+', 'adultos mayores'])) ?></td>
+                    <td><?= $marcar($tieneObjetivo(['embaraz'])) ?></td>
+                    <td><?= $marcar($tieneObjetivo(['personal de salud'])) ?></td>
+                    <td><?= $marcar($tieneRiesgo(['vih', 'sida'])) ?></td>
+                    <td><?= $marcar($tieneRiesgo(['diabetes'])) ?></td>
+                    <td><?= $marcar($tieneRiesgo(['obesidad'])) ?></td>
+                    <td><?= $marcar($tieneRiesgo(['cardiopat', 'afecciones cardíacas', 'enfermedad cardiovascular'])) ?></td>
+                    <td><?= $marcar($tieneRiesgo(['pulmonar', 'epoc', 'asma'])) ?></td>
+                    <td><?= $marcar($tieneRiesgo(['cáncer', 'cancer'])) ?></td>
+                    <td><?= $marcar($tieneRiesgo(['congénit', 'congenit', 'salicilatos'])) ?></td>
+                    <td><?= $marcar($tieneRiesgo(['renal'])) ?></td>
+                    <td><?= $marcar($tieneRiesgo(['inmunosupresión', 'inmunosupresion'])) ?></td>
+                    <td><?= $marcar($tieneRiesgo(['hipertensión', 'hipertension'])) ?></td>
+                    <td><?= $marcar($tieneRiesgo(['discapacidad'])) ?></td>
+                    <td><?= $marcar($tieneRiesgo(['trasplante', 'transplante'])) ?></td>
+                    <td><?= $marcar($tieneRiesgo(['fibrosis quística', 'fibrosis quistica'])) ?></td>
+                    <td><?= h(implode(', ', $p['grupos_riesgo'] ?? [])) ?></td>
+                    <td class="celda-vacuna"><?= $mostrarApp($dosisInfluenza['primera']) ?></td>
+                    <td class="celda-vacuna"><?= $mostrarApp($dosisInfluenza['segunda']) ?></td>
+                    <td class="celda-vacuna"><?= $mostrarApp($dosisInfluenza['anual']) ?></td>
+                    <td class="celda-vacuna"><?= $mostrarApp($aplicacionCovid) ?></td>
+                    <td class="celda-vacuna"><?= $mostrarApp($aplicacionNeumo) ?></td>
+                    <td><?= h(implode(', ', array_unique($lotes))) ?></td>
+                    <td><?= h($p['derechoabiencia'] ?? '') ?></td>
+                </tr>
+                <tr class="curp-nota"><td colspan="39">CURP/ENTIDAD DE NACIMIENTO: <?= h($p['CURP'] ?? $p['curp'] ?? '') ?></td></tr>
+            <?php endforeach; ?>
+        <?php endif; ?>
+        </tbody>
+    </table>
+    </div>
+</div>
+<script>
+    (function () {
+    const contenedor = document.getElementById('encabezadoEditable');
+    if (!contenedor) return;
+    const elementos = Array.from(contenedor.querySelectorAll('[data-edit-key]'));
+    const prefijo = 'censo_influenza_encabezado_v1_';
+    const originales = new Map(elementos.map(el => [el.dataset.editKey, el.innerHTML]));
+
+    function guardarCambios(mostrarAviso) {
+        try {
+            elementos.forEach(el => {
+                localStorage.setItem(prefijo + el.dataset.editKey, el.innerHTML);
+            });
+            if (mostrarAviso) alert('Encabezado guardado en este navegador.');
+        } catch (e) {
+            if (mostrarAviso) alert('No fue posible guardar automáticamente. El navegador puede estar bloqueando el almacenamiento local.');
+        }
+    }
+
+    elementos.forEach(el => {
+        try {
+            const guardado = localStorage.getItem(prefijo + el.dataset.editKey);
+            if (guardado !== null) el.innerHTML = guardado;
+        } catch (e) {}
+        el.addEventListener('input', () => guardarCambios(false));
+        el.addEventListener('blur', () => guardarCambios(false));
+    });
+
+    document.getElementById('guardarEncabezado')?.addEventListener('click', () => guardarCambios(true));
+    document.getElementById('restaurarEncabezado')?.addEventListener('click', () => {
+        if (!confirm('¿Restaurar el encabezado a los textos originales?')) return;
+        elementos.forEach(el => {
+            el.innerHTML = originales.get(el.dataset.editKey) || '';
+            try { localStorage.removeItem(prefijo + el.dataset.editKey); } catch (e) {}
+        });
+        alert('Se restauraron los textos originales del encabezado.');
+    });
+})();
+
+</script>
+</body>
+</html>

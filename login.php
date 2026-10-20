@@ -53,6 +53,7 @@ if($_SERVER["REQUEST_METHOD"] == "POST") {
     <head>
         <meta charset="UTF-8">
         <title>Inicio de Sesion </title>
+        <link rel="stylesheet" href="../css/estilos.css">
     </head>
 
     <body>

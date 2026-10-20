@@ -23,6 +23,7 @@ $resultado = $conexion->query($sql);
 <head>
     <meta charset="UTF-8">
     <title>Gestión de usuarios</title>
+    <link rel="stylesheet" href="../css/estilos.css">
 </head>
 
 <body>

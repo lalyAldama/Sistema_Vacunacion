@@ -56,6 +56,7 @@ if (isset($_POST['guardar'])) {
 <head>
     <meta charset="UTF-8">
     <title>Nueva Presentación</title>
+    <link rel="stylesheet" href="../css/estilos.css">
 </head>
 
 <body>

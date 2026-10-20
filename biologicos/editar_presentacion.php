@@ -83,6 +83,7 @@ $biologicos = $conexion->query($sql_biologicos);
 <head>
     <meta charset="UTF-8">
     <title>Editar Presentación</title>
+    <link rel="stylesheet" href="../css/estilos.css">
 </head>
 
 <body>

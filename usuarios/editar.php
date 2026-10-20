@@ -70,6 +70,7 @@ $unidades = $conexion->query($sql_unidades);
     <head>
         <meta charset="UTF-8">
         <title>Editar usuario</title>
+        <link rel="stylesheet" href="../css/estilos.css">
     </head>
     <body>
         <h1>Editar usuario</h1>

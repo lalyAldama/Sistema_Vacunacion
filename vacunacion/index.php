@@ -35,6 +35,7 @@ if(isset($_GET["buscar"])) {
     <head>
         <meta charset="UTF-8">
         <title>REGISTRO DE APLICACIÓN DE VACUNAS</title>
+        <link rel="stylesheet" href="../css/estilos.css">
     </head>
 
     <body>
@@ -78,7 +79,7 @@ if(isset($_GET["buscar"])) {
                         </td>
 
                         <td>
-                            <a href="registrar_vacuna.php?id=<?php echo urlencode($paciente["id_paciente"]);?>">
+                            <a href="registrar_vacuna.php?id=<?php echo urlencode($paciente["id_paciente"]);?>" class="btn btn-censo">
                                 REGISTRAR APLICACIÓN
                             </a>
                         </td>

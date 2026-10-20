@@ -293,3 +293,6 @@ if(fechaNacimiento && fechaNacimiento.value){
     EsMigrante.dispatchEvent(new Event("change"));
     embarazo.dispatchEvent(new Event("change"));
 }
+
+
+

@@ -230,6 +230,7 @@ $esMigrante = (
             text-transform: uppercase;
         }
     </style>
+    <link rel="stylesheet" href="../css/estilos.css">
 </head>
 
 <body>

@@ -17,6 +17,7 @@ require_once "../config/conexion.php";
         </style>
         <meta charset="UTF-8">
         <Title> Registrar Paciente</Title>
+        <link rel="stylesheet" href="../css/estilos.css">
     </head>
 
     <body>
