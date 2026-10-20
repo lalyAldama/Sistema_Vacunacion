@@ -420,7 +420,7 @@ foreach ($vacunasEsquema as $bio) {
         }
 
         .etiqueta-ubicacion {
-            font-size: 5px;
+            font-size: 8px;
             line-height: 1;
             padding: 2px 1px !important;
             white-space: nowrap;
@@ -431,6 +431,52 @@ foreach ($vacunasEsquema as $bio) {
         .celda-nombre,
         .celda-ageb {
             padding: 2px !important;
+        }
+
+        .censo .encabezado-ubicacion {
+            width: 105px;
+            min-width: 105px;
+            white-space: normal;
+        }
+
+        .censo .encabezado-clave {
+            width: 68px;
+            min-width: 68px;
+        }
+
+        .censo .encabezado-nombre {
+            width: 114px;
+            min-width: 114px;
+        }
+
+        
+        .censo .celda-clave {
+            padding: 0 !important;
+            min-width: 42px;
+            width: 42px;
+        }
+
+        .censo .clave-casillas {
+            width: 100%;
+            height: 100%;
+            table-layout: fixed;
+            border-collapse: collapse;
+            border-spacing: 0;
+            margin: 0;
+        }
+
+        .censo .clave-casillas td {
+            border: 1px solid #555;
+            padding: 0 !important;
+            width: auto;
+            height: 18px;
+            min-width: 0;
+        }
+
+        .censo .celda-nombre {
+            min-width: 100px;
+            width: 100px;
+            white-space: nowrap;
         }
     </style>
 </head>
@@ -594,7 +640,9 @@ foreach ($vacunasEsquema as $bio) {
                         <th>AÑO</th>
                         <th>REGULAR</th>
                         <th>IRREGULAR</th>
-                        <th colspan="3">UBICACIÓN GEOGRÁFICA DE RESIDENCIA</th>
+                        <th class="encabezado-ubicacion">UBICACIÓN GEOGRÁFICA DE RESIDENCIA</th>
+                        <th class="encabezado-clave">CLAVE</th>
+                        <th class="encabezado-nombre">NOMBRE</th>
                         <th>CALLE</th>
                         <th>No.</th>
                         <th>COLONIA</th>
@@ -689,7 +737,7 @@ foreach ($vacunasEsquema as $bio) {
 
                         <!-- UBICACIÓN GEOGRÁFICA: 3 columnas bajo su encabezado -->
                         <td class="etiqueta-ubicacion">ENTIDAD FEDERATIVA</td>
-                        <td class="celda-clave"></td>
+                        <td class="celda-clave"><table class="clave-casillas" aria-label="Clave de entidad"><tr><td></td><td></td></tr></table></td>
                         <td class="celda-nombre"></td>
 
                         <td rowspan="4"><?php echo e($paciente["calle"]); ?></td>
@@ -748,13 +796,13 @@ foreach ($vacunasEsquema as $bio) {
                     ========================================== -->
                     <tr class="fila-secundaria">
                         <td class="etiqueta-ubicacion">MUNICIPIO</td>
-                        <td class="celda-clave"></td>
+                        <td class="celda-clave"><table class="clave-casillas" aria-label="Clave de municipio"><tr><td></td><td></td><td></td></tr></table></td>
                         <td class="celda-nombre"></td>
                     </tr>
 
                     <tr class="fila-secundaria">
                         <td class="etiqueta-ubicacion">LOCALIDAD</td>
-                        <td class="celda-clave"></td>
+                        <td class="celda-clave"><table class="clave-casillas" aria-label="Clave de localidad"><tr><td></td><td></td><td></td><td></td></tr></table></td>
                         <td class="celda-nombre"></td>
                     </tr>
 
@@ -764,7 +812,7 @@ foreach ($vacunasEsquema as $bio) {
                             CURP: <?php echo e($paciente["curp"]); ?>
                         </td>
                         <td class="etiqueta-ubicacion">AGEB</td>
-                        <td class="celda-clave"></td>
+                        <td class="celda-clave"><table class="clave-casillas" aria-label="Clave AGEB"><tr><td></td><td></td><td></td><td></td></tr></table></td>
                         <td class="celda-nombre"></td>
                     </tr>
 
@@ -808,7 +856,7 @@ foreach ($vacunasEsquema as $bio) {
                             <td rowspan="3"></td>
 
                             <td class="etiqueta-ubicacion">ENTIDAD FEDERATIVA</td>
-                            <td class="celda-clave"></td>
+                            <td class="celda-clave"><table class="clave-casillas" aria-label="Clave de entidad"><tr><td></td><td></td></tr></table></td>
                             <td class="celda-nombre"></td>
 
                             <td rowspan="3">
@@ -825,19 +873,20 @@ foreach ($vacunasEsquema as $bio) {
 
                         <tr class="fila-acompanante">
                             <td class="etiqueta-ubicacion">MUNICIPIO</td>
-                            <td class="celda-clave"></td>
+                            <td class="celda-clave"><table class="clave-casillas" aria-label="Clave de municipio"><tr><td></td><td></td><td></td></tr></table></td>
                             <td class="celda-nombre"></td>
                         </tr>
 
                         <tr class="fila-acompanante">
-                            <!-- El parentesco ocupa el espacio de NOMBRE, nunca las columnas geográficas. -->
-                            <td colspan="3" class="parentesco-tutor">
+                            <!-- El parentesco ocupa su propio espacio debajo del nombre del tutor.
+                                 No debe ocupar columnas de ubicación geográfica. -->
+                            <td colspan="3" class="parentesco">
                                 <?php if (!empty($paciente["parentesco"])): ?>
                                     PARENTESCO: <?php echo e($paciente["parentesco"]); ?>
                                 <?php endif; ?>
                             </td>
                             <td class="etiqueta-ubicacion">LOCALIDAD</td>
-                            <td class="celda-clave"></td>
+                            <td class="celda-clave"><table class="clave-casillas" aria-label="Clave de localidad"><tr><td></td><td></td><td></td><td></td></tr></table></td>
                             <td class="celda-nombre"></td>
                         </tr>
 
