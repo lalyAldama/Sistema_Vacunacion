@@ -1,0 +1,349 @@
+
+/* ======================================
+   INICIO DE SESIÓN
+   Azul clínico + turquesa + verde menta
+====================================== */
+
+* {
+    box-sizing: border-box;
+}
+
+.login-body {
+    margin: 0;
+    min-height: 100vh;
+    padding: 30px 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: Arial, Helvetica, sans-serif;
+    color: #34495E;
+    background:
+        radial-gradient(
+            circle at 10% 15%,
+            rgba(53, 175, 168, 0.15),
+            transparent 30%
+        ),
+        radial-gradient(
+            circle at 90% 85%,
+            rgba(52, 127, 145, 0.13),
+            transparent 32%
+        ),
+        #F2F8FA;
+}
+
+.login-contenedor {
+    width: 100%;
+    max-width: 420px;
+    margin: auto;
+}
+
+/* Encabezado */
+
+.login-encabezado {
+    position: relative;
+    overflow: hidden;
+    padding: 32px 22px 28px;
+    text-align: center;
+    color: #FFFFFF;
+    background: linear-gradient(
+        135deg,
+        #285F70,
+        #347F91 65%,
+        #35AFA8
+    );
+    border-radius: 20px 20px 0 0;
+}
+
+.login-encabezado::before {
+    content: "";
+    position: absolute;
+    width: 180px;
+    height: 180px;
+    top: -110px;
+    right: -55px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.09);
+}
+
+.login-logo {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 66px;
+    height: 66px;
+    margin: 0 auto 14px;
+    border-radius: 19px;
+    background: #C7EEE2;
+    color: #285F70;
+    font-size: 36px;
+    font-weight: bold;
+}
+
+.login-encabezado h1 {
+    position: relative;
+    margin: 0 0 8px;
+    color: #FFFFFF;
+    font-size: 30px;
+    letter-spacing: -0.6px;
+}
+
+.login-encabezado p {
+    position: relative;
+    margin: 0;
+    color: #E1F5F2;
+    font-size: 11px;
+    font-weight: bold;
+    letter-spacing: 2px;
+}
+
+.login-linea {
+    width: 42px;
+    height: 4px;
+    margin: 20px auto 0;
+    border-radius: 10px;
+    background: #79DED1;
+}
+
+/* Panel de acceso */
+
+.login-panel {
+    padding: 30px;
+    background: #FFFFFF;
+    border: 1px solid #DCE9ED;
+    border-top: none;
+    border-radius: 0 0 20px 20px;
+    box-shadow: 0 18px 45px rgba(40, 95, 112, 0.12);
+}
+
+.login-introduccion {
+    margin-bottom: 25px;
+}
+
+.login-etiqueta {
+    color: #347F91;
+    font-size: 10px;
+    font-weight: bold;
+    letter-spacing: 1.8px;
+}
+
+.login-introduccion h2 {
+    margin: 10px 0 8px;
+    color: #285F70;
+    font-size: 28px;
+    letter-spacing: -0.6px;
+}
+
+.login-introduccion p {
+    margin: 0;
+    color: #647985;
+    font-size: 14px;
+    line-height: 1.6;
+}
+
+/* Campos */
+
+.login-formulario {
+    display: flex;
+    flex-direction: column;
+    gap: 19px;
+}
+
+.login-campo {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.login-campo label {
+    color: #34495E;
+    font-size: 13px;
+    font-weight: bold;
+}
+
+.login-campo input {
+    width: 100%;
+    min-height: 46px;
+    padding: 12px 14px;
+    border: 1px solid #D5E2E7;
+    border-radius: 9px;
+    background: #FAFCFD;
+    color: #34495E;
+    font-family: inherit;
+    font-size: 14px;
+    transition:
+        border-color 0.2s ease,
+        box-shadow 0.2s ease,
+        background 0.2s ease;
+}
+
+.login-campo input::placeholder {
+    color: #91A3AD;
+}
+
+.login-campo input:hover {
+    border-color: #A9CFD4;
+}
+
+.login-campo input:focus {
+    outline: none;
+    border-color: #35AFA8;
+    background: #FFFFFF;
+    box-shadow: 0 0 0 3px rgba(53, 175, 168, 0.15);
+}
+
+/* Botón principal */
+
+.login-boton {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    width: 100%;
+    min-height: 48px;
+    margin-top: 5px;
+    padding: 12px 18px;
+    border: none;
+    border-radius: 9px;
+    background: linear-gradient(
+        100deg,
+        #347F91,
+        #35AFA8
+    );
+    color: #FFFFFF;
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: bold;
+    cursor: pointer;
+    box-shadow: 0 5px 12px rgba(52, 127, 145, 0.18);
+    transition:
+        transform 0.2s ease,
+        box-shadow 0.2s ease,
+        filter 0.2s ease;
+}
+
+.login-boton span {
+    font-size: 20px;
+    line-height: 1;
+    transition: transform 0.2s ease;
+}
+
+.login-boton:hover {
+    filter: brightness(0.94);
+    box-shadow: 0 8px 17px rgba(52, 127, 145, 0.24);
+    transform: translateY(-1px);
+}
+
+.login-boton:hover span {
+    transform: translateX(3px);
+}
+
+.login-boton:focus-visible {
+    outline: 3px solid #285F70;
+    outline-offset: 3px;
+}
+
+.login-boton:active {
+    transform: translateY(0);
+}
+
+/* Mensaje de error */
+
+.login-error {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin-bottom: 20px;
+    padding: 12px;
+    border: 1px solid #E8BEC3;
+    border-radius: 9px;
+    background: #FCEDEF;
+    color: #963A45;
+}
+
+.login-error > span {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 21px;
+    height: 21px;
+    border-radius: 50%;
+    background: #B8424D;
+    color: #FFFFFF;
+    font-weight: bold;
+    font-size: 13px;
+}
+
+.login-error p {
+    margin: 2px 0 0;
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+/* Separador y pie */
+
+.login-separador {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 25px 0 16px;
+}
+
+.login-separador > span:first-child,
+.login-separador > span:last-child {
+    flex: 1;
+    height: 1px;
+    background: #E5EDF0;
+}
+
+.login-separador-icono {
+    color: #35AFA8;
+    font-size: 15px;
+}
+
+
+.login-footer {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 7px;
+    margin-top: 20px;
+    color: #718994;
+    font-size: 11px;
+    text-align: center;
+}
+
+/* Pantallas pequeñas */
+
+@media (max-width: 480px) {
+    .login-body {
+        padding: 18px 12px;
+    }
+
+    .login-encabezado {
+        padding: 27px 18px 23px;
+    }
+
+    .login-encabezado h1 {
+        font-size: 27px;
+    }
+
+    .login-panel {
+        padding: 24px 20px;
+    }
+
+    .login-introduccion h2 {
+        font-size: 25px;
+    }
+}
+
+/* Accesibilidad: reducir movimiento */
+
+@media (prefers-reduced-motion: reduce) {
+    .login-campo input,
+    .login-boton,
+    .login-boton span {
+        transition: none;
+    }
+}

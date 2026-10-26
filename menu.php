@@ -25,11 +25,10 @@ $nombre = $_SESSION["nombre"] ?? "Usuario";
     <main class="menu-contenedor">
 
         <header class="menu-encabezado">
-            <div class="menu-logo">✚</div>
 
-            <div>
-                <h1>Sistema de Vacunación</h1>
-                <p>Panel de control</p>
+            <div class="menu-titulos">
+                <h1 class="menu-subtitulo">Vacunación</h1>
+                <h2 class="menu-subtitulo2">DISTRITO III PARRAL</h2>
             </div>
         </header>
 
@@ -83,15 +82,25 @@ $nombre = $_SESSION["nombre"] ?? "Usuario";
                     </span>
                     <span class="menu-flecha">›</span>
                 </a>
-
-                <a class="menu-tarjeta morado" href="reportes/index.php">
+                
+                <a class="menu-tarjeta morado" href="vacunacion/index.php">
                     <span class="menu-icono">▥</span>
                     <span class="menu-texto">
-                        <strong>Reportes</strong>
+                        <strong>Aplicación de vacunas</strong>
+                        <small>Registre nueva aplicación de vacuna</small>
+                    </span>
+                    <span class="menu-flecha">›</span>
+                </a>
+
+                  <a class="menu-tarjeta morado" href="reportes/index.php">
+                    <span class="menu-icono">▥</span>
+                    <span class="menu-texto">
+                        <strong>Paloteo</strong>
                         <small>Consulta de reportes del sistema</small>
                     </span>
                     <span class="menu-flecha">›</span>
                 </a>
+
 
                 <a class="menu-tarjeta naranja" href="consultas/index.php">
                     <span class="menu-icono">⌕</span>

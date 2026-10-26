@@ -420,7 +420,7 @@ foreach ($vacunasEsquema as $bio) {
         }
 
         .etiqueta-ubicacion {
-            font-size: 8px;
+            font-size: 5px;
             line-height: 1;
             padding: 2px 1px !important;
             white-space: nowrap;
@@ -449,8 +449,6 @@ foreach ($vacunasEsquema as $bio) {
             min-width: 114px;
         }
 
-        /* Cuadritos de CLAVE dentro de su propia columna.
-           La tabla interior no agrega columnas a la tabla principal. */
         .censo .celda-clave {
             padding: 0 !important;
             min-width: 42px;
@@ -480,7 +478,7 @@ foreach ($vacunasEsquema as $bio) {
             white-space: nowrap;
         }
 
-        /* Encabezado administrativo agregado sin tocar los estilos ni la tabla del domicilio. */
+        
         .encabezado-formato-oficial { margin: 12px 0 16px; color: #111; }
         .datos-administrativos-censo { display: grid; grid-template-columns: repeat(4, minmax(120px, 1fr)); border-top: 1px solid #333; border-left: 1px solid #333; font-size: 10px; }
         .dato-admin { min-width: 0; border-right: 1px solid #333; border-bottom: 1px solid #333; padding: 4px; }
@@ -494,7 +492,7 @@ foreach ($vacunasEsquema as $bio) {
         .aviso-admin { margin: 4px 0 0; font-size: 9px; color: #555; }
         @media (max-width: 700px) { .datos-administrativos-censo { grid-template-columns: repeat(2, minmax(110px, 1fr)); } }
     
-/* Encabezado separado en filas para evitar que los logotipos tapen el texto. */
+
 .encabezado-formato-oficial { width:100%; margin:8px 0 12px; color:#111; font-family:Arial, sans-serif; }
 .cabecera-superior-formato { position:relative; display:flex; flex-direction:column; align-items:stretch; justify-content:flex-start; gap:5px; min-height:0; padding:0; }
 .cabecera-titulos-oficiales { position:static; width:100%; box-sizing:border-box; transform:none; text-align:center; font-size:10px; font-weight:bold; line-height:1.35; color:#111; z-index:1; padding:0 4px; }
@@ -518,6 +516,20 @@ foreach ($vacunasEsquema as $bio) {
 .clues-admin .horizontal-admin > span { flex-basis:70px; }
 .aviso-admin { margin:3px 0 0; font-size:8px; color:#555; }
 @media (max-width:800px) { .cabecera-titulos-oficiales { position:static; transform:none; width:100%; } .logos-institucionales-censo { width:72%; max-width:100%; max-height:34px; } .datos-administrativos-censo { grid-template-columns:1fr; } .bloque-admin-izquierdo,.bloque-admin-centro,.bloque-admin-derecho,.bloque-admin-inferior { grid-column:1; grid-row:auto; } .bloque-admin-inferior { grid-template-columns:1fr 1fr; } }
+        .pie-censo-oficial { margin: 10px 0 18px; font-family: Arial, sans-serif; font-size: 10px; color: #111; border: 1px solid #555; }
+        .pie-notas { display: grid; grid-template-columns: 1fr 0.65fr 1.45fr 1.15fr 1.15fr; border-bottom: 1px solid #555; }
+        .pie-bloque { min-width: 0; padding: 5px 6px; border-right: 1px solid #777; }
+        .pie-bloque:last-child { border-right: 0; }
+        .pie-bloque > strong { display: block; margin-bottom: 5px; font-size: 10px; }
+        .pie-bloque p { margin: 3px 0; line-height: 1.25; }
+        .pie-lista-tres { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px 7px; line-height: 1.25; }
+        .pie-lista-dos { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 7px; line-height: 1.25; }
+        .pie-firmas { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; padding: 9px 12px 7px; text-align: center; border-bottom: 1px solid #777; font-weight: bold; }
+        .linea-firma { height: 20px; border-bottom: 1px solid #555; margin: 0 8px; }
+        .pie-aclaracion-vacuna { padding: 5px 7px; font-size: 9px; line-height: 1.25; }
+        .pie-aclaracion-vacuna p { margin: 3px 0; }
+        @media (max-width: 900px) { .pie-notas { grid-template-columns: repeat(2, minmax(0, 1fr)); } .pie-bloque { border-bottom: 1px solid #777; } .pie-firmas { gap: 8px; } }
+        @media print { .pie-censo-oficial { break-inside: avoid; } }
 </style>
 </head>
 <body>
@@ -534,10 +546,6 @@ foreach ($vacunasEsquema as $bio) {
 
         <a href="registrar.php" class="btn btn-verde">
             REGISTRAR NUEVO PACIENTE
-        </a>
-
-        <a href="../vacunacion/index.php" class=" btn btn-verde">
-            REGISTRAR APLICACION DE VACUNA
         </a>
     </div>
 
@@ -963,6 +971,56 @@ foreach ($vacunasEsquema as $bio) {
                 </tbody>
             </table>
         </div>
+
+        <!-- Pie del formato oficial del censo, basado en pie_formato.xlsx -->
+        <section class="pie-censo-oficial" aria-label="Pie del formato oficial del censo">
+            <div class="pie-notas">
+                <div class="pie-bloque pie-nota-principal">
+                    <strong>NOTA:</strong>
+                    <p>(1).- REGISTRAR DATOS DEL MENOR.</p>
+                    <p>(2).- REGISTRAR DATOS DEL ACOMPAÑANTE.</p>
+                </div>
+                <div class="pie-bloque">
+                    <strong>(a) SEXO:</strong>
+                    <p>F: Femenino</p><p>M: Masculino</p>
+                </div>
+                <div class="pie-bloque pie-derechohabiencia">
+                    <strong>(b) DERECHOHABIENCIA:</strong>
+                    <div class="pie-lista-tres">
+                        <span>1.- SECRETARÍA DE SALUD</span><span>2.- IMSS</span><span>3.- ISSSTE</span>
+                        <span>4.- IMSS BIENESTAR</span><span>5.- SEDENA</span><span>6.- SEMAR</span>
+                        <span>7.- PEMEX</span><span>8.- DIF</span><span>9.- OTROS</span>
+                    </div>
+                </div>
+                <div class="pie-bloque pie-parentesco">
+                    <strong>PARENTESCO:</strong>
+                    <div class="pie-lista-dos">
+                        <span>(1).- Madre</span><span>(7).- Hija</span><span>(2).- Padre</span><span>(8).- Hijo</span>
+                        <span>(3).- Abuelo</span><span>(9).- Prima</span><span>(4).- Abuela</span><span>(10).- Primo</span>
+                        <span>(5).- Tío</span><span>(11).- Vecino (a)</span><span>(6).- Tía</span><span>(12).- Otro parentesco</span>
+                    </div>
+                </div>
+                <div class="pie-bloque pie-migratorio">
+                    <strong>(c) ESTATUS MIGRATORIO</strong>
+                    <p><b>REGULAR:</b> Persona extranjera que ha cumplido con las disposiciones migratorias para su entrada y estancia en México.</p>
+                    <p><b>IRREGULAR:</b> Persona que ha incumplido las disposiciones migratorias para su entrada y estancia en México.</p>
+                </div>
+                <div class="pie-bloque pie-codigos">
+                    <strong>(d) CÓDIGOS:</strong>
+                    <div class="pie-lista-dos">
+                        <span>A.- AUSENTE</span><span>R.- RENUENTE</span><span>I.- INMIGRÓ</span><span>E.- EMIGRÓ</span><span>D.- DEFUNCIÓN</span><span>F.- ENFERMO</span>
+                    </div>
+                </div>
+            </div>
+            <div class="pie-firmas">
+                <div>Nombre y Firma del Vacunador<div class="linea-firma"></div></div>
+                <div>Nombre, Cargo y Firma de quien Valida<div class="linea-firma"></div></div>
+            </div>
+            <div class="pie-aclaracion-vacuna">
+                <p><b>*</b> La vacuna contra el VPH se aplica a niñas y niños de 5to año de primaria y de 11 años no escolarizados. De existir niñas y niños de 9 años cursando el 5to grado, deberá registrarse en el presente censo nominal, considerando que la edad mínima de aplicación de la vacuna contra el VPH es a los 9 años.</p>
+                <p><b>** Esquema primario:</b> 2 dosis en la misma temporada invernal, con intervalo de 4 semanas entre cada una a niñas y niños de 6 a 59 meses. Posteriormente un refuerzo anual y cada temporada invernal hasta los 59 meses de edad. Una dosis anual (refuerzo) en niñas y niños de 5 a 9 años con comorbilidades de riesgo. Ver lineamientos vigentes.</p>
+            </div>
+        </section>
 
     <?php elseif ($buscar !== "" && count($pacientes) === 0): ?>
 

@@ -16,7 +16,6 @@ $sql = "SELECT
 
 $resultado = $conexion->query($sql);
 
-//unidades
 
 $sql_unidades= "SELECT 
                 id_unidad,
@@ -35,6 +34,7 @@ if($_SERVER["REQUEST_METHOD"] == "POST") {
     $fecha_movimiento = $_POST['fecha_movimiento'];
     $necesidad = 0;
     $id_unidad = $_POST['id_unidad'];
+    $observaciones = trim($_POST["observaciones"] ?? "");
 
 //Dosis por frasco
     $sql_dosis = "SELECT dosis_por_frasco
@@ -74,19 +74,20 @@ if($_SERVER["REQUEST_METHOD"] == "POST") {
         $id_lote= $conexion ->insert_id;
 
         $sql_movimiento = "INSERT INTO MOVIMIENTO_BIOLOGICO(
-                            id_unidad, id_lote, tipo_movimiento, cantidad_frascos, cantidad_dosis,
-                            fecha_movimiento, necesidad)
-                            VALUES (?, ?, 'Entrada', ?,?,?,?)";
+                    id_unidad, id_lote, tipo_movimiento, cantidad_frascos, cantidad_dosis,
+                    fecha_movimiento, necesidad, observaciones)
+                    VALUES (?, ?, 'Entrada', ?, ?, ?, ?, ?)";
         $stmt_movimiento = $conexion->prepare($sql_movimiento);
 
         $stmt_movimiento->bind_param(
-            "iiiisi",
+            "iiiisis",
             $id_unidad,
             $id_lote,
             $cantidad_frascos,
             $cantidad_dosis,
-            $fecha_movimiento, 
-            $necesidad
+            $fecha_movimiento,
+            $necesidad,
+            $observaciones
         );
 
         $stmt_movimiento->execute();
@@ -173,6 +174,15 @@ if($_SERVER["REQUEST_METHOD"] == "POST") {
                 <?php }  ?> 
             </select>
             <br><br>
+            <label>OBSERVACIONES DE ENTRADA</label>
+            <textarea
+                name="observaciones"
+                rows="5"
+                cols="50"
+                maxlength="500"
+            ></textarea>
+            <br>
+            <br>
 
             <button type="submit">
                 GUARDAR ENTRADA

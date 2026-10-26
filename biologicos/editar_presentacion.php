@@ -149,7 +149,6 @@ $biologicos = $conexion->query($sql_biologicos);
 
         <br><br>
 
-
         <!-- ML por dosis -->
 
         <label>ML por dosis</label>

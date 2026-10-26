@@ -1,3 +1,4 @@
+
 * {
     box-sizing: border-box;
 }
@@ -5,8 +6,8 @@
 body {
     margin: 0;
     padding: 20px;
-    background: #eeeeee;
-    color: #111;
+    background: #F2F8FA;
+    color: #34495E;
     font-family: Arial, Helvetica, sans-serif;
 }
 
@@ -15,8 +16,8 @@ body {
 }
 
 .barra-superior {
-    background: #ffffff;
-    border: 1px solid #999;
+    background: #FFFFFF;
+    border: 1px solid #DCE9ED;
     padding: 15px 18px;
     display: flex;
     justify-content: space-between;
@@ -27,18 +28,20 @@ body {
 .barra-superior h1 {
     margin: 0;
     font-size: 24px;
+    color: #285F70;
 }
 
 .unidad {
     margin-top: 5px;
     font-weight: bold;
+    color: #536A78;
 }
 
 .panel-filtros {
     margin-top: 12px;
     padding: 14px;
-    background: #ffffff;
-    border: 1px solid #aaa;
+    background: #FFFFFF;
+    border: 1px solid #DCE9ED;
 }
 
 .buscador {
@@ -51,8 +54,17 @@ body {
     width: 420px;
     max-width: 100%;
     padding: 9px;
-    border: 1px solid #888;
+    border: 1px solid #B8CDD4;
+    border-radius: 5px;
     font-size: 14px;
+    color: #34495E;
+    background: #FFFFFF;
+}
+
+.buscador input:focus {
+    outline: none;
+    border-color: #35AFA8;
+    box-shadow: 0 0 0 3px rgba(53, 175, 168, 0.14);
 }
 
 .filtros-censo {
@@ -65,7 +77,7 @@ body {
 .btn {
     display: inline-block;
     border: 0;
-    border-radius: 4px;
+    border-radius: 5px;
     padding: 9px 13px;
     text-decoration: none;
     font-weight: bold;
@@ -73,47 +85,65 @@ body {
 }
 
 .btn-azul {
-    background: #4472c4;
-    color: #fff;
+    background: #347F91;
+    color: #FFFFFF;
+}
+
+.btn-azul:hover {
+    background: #285F70;
 }
 
 .btn-verde {
-    background: #548235;
-    color: #fff;
+    background: #278A83;
+    color: #FFFFFF;
+}
+
+.btn-verde:hover {
+    background: #216F6A;
 }
 
 .btn-censo {
-    background: #5b9bd5;
-    color: #fff;
+    background: #35AFA8;
+    color: #173F43;
+}
+
+.btn-censo:hover {
+    background: #2B9993;
+    color: #FFFFFF;
 }
 
 .btn-editar {
     display: inline-block;
-    background: #70ad47;
-    color: #fff;
+    background: #347F91;
+    color: #FFFFFF;
     text-decoration: none;
     padding: 5px 8px;
-    border-radius: 3px;
+    border-radius: 4px;
     font-weight: bold;
     white-space: nowrap;
+}
+
+.btn-editar:hover {
+    background: #285F70;
 }
 
 .encabezado-oficial {
     margin-top: 14px;
     padding: 12px;
-    background: #fff;
-    border: 1px solid #888;
+    background: #FFFFFF;
+    border: 1px solid #B8CDD4;
     text-align: center;
     font-size: 13px;
     line-height: 1.55;
+    color: #34495E;
 }
 
 .tabla-scroll {
     width: 100%;
     overflow-x: auto;
     margin-top: 12px;
-    background: #fff;
-    border: 1px solid #777;
+    background: #FFFFFF;
+    border: 1px solid #B8CDD4;
 }
 
 .censo {
@@ -126,7 +156,7 @@ body {
 
 .censo th,
 .censo td {
-    border: 1px solid #555;
+    border: 1px solid #B8CDD4;
     padding: 3px;
     text-align: center;
     vertical-align: middle;
@@ -134,7 +164,8 @@ body {
 }
 
 .censo th {
-    background: #d9e2f3;
+    background: #E3F0F5;
+    color: #285F70;
     font-weight: bold;
 }
 
@@ -143,16 +174,17 @@ body {
 }
 
 .censo .encabezado-vacuna {
-    background: #e2f0d9;
+    background: #C7EEE2;
+    color: #245E60;
 }
 
 .fila-paciente td {
-    background: #fff;
+    background: #FFFFFF;
 }
 
 .fila-secundaria td,
 .fila-acompanante td {
-    background: #f7f7f7;
+    background: #F2F8FA;
 }
 
 .fila-acompanante {
@@ -170,7 +202,7 @@ body {
 
 .ubicacion-secundaria {
     font-size: 9px;
-    color: #555;
+    color: #536A78;
 }
 
 .parentesco {
@@ -182,6 +214,7 @@ body {
     min-width: 72px;
 }
 
+/* Se conserva el formato oficial de aplicaciones del día */
 .aplicacion-hoy {
     color: red !important;
     font-weight: bold;
@@ -195,16 +228,16 @@ body {
 
 .sin-resultados,
 .sin-seleccion {
-    background: #fff;
-    border: 1px solid #aaa;
+    background: #FFFFFF;
+    border: 1px solid #DCE9ED;
     margin-top: 14px;
     padding: 30px;
     text-align: center;
     font-size: 16px;
+    color: #536A78;
 }
 
 @media (max-width: 700px) {
-
     body {
         padding: 8px;
     }
@@ -219,19 +252,18 @@ body {
     }
 }
 
-/* =====================================================
-   RESULTADOS DE BÚSQUEDA
-===================================================== */
+/* RESULTADOS DE BÚSQUEDA */
 
 .panel-resultados {
     margin-top: 14px;
     padding: 16px;
-    background: #ffffff;
-    border: 1px solid #aaa;
+    background: #FFFFFF;
+    border: 1px solid #DCE9ED;
 }
 
 .panel-resultados h2 {
     margin-top: 0;
+    color: #285F70;
 }
 
 .tabla-resultados-scroll {
@@ -247,25 +279,31 @@ body {
 
 .tabla-resultados th,
 .tabla-resultados td {
-    border: 1px solid #777;
+    border: 1px solid #DCE9ED;
     padding: 8px;
     text-align: left;
 }
 
 .tabla-resultados th {
-    background: #d9e2f3;
+    background: #E3F0F5;
+    color: #285F70;
 }
 
 .btn-editar-secundario {
-    background: #7f7f7f;
+    background: #647985;
+    color: #FFFFFF;
     margin-left: 5px;
+}
+
+.btn-editar-secundario:hover {
+    background: #475D69;
 }
 
 .resultado-individual {
     margin-top: 12px;
     padding: 10px 12px;
-    background: #fff;
-    border: 1px solid #aaa;
+    background: #FFFFFF;
+    border: 1px solid #DCE9ED;
 }
 
 .ubicacion-label {
@@ -273,8 +311,9 @@ body {
     font-weight: normal;
 }
 
+/* Se conserva la estructura de filas acompañantes */
 .fila-acompanante td {
-    background: #f7f7f7;
+    background: #F2F8FA;
 }
 
 .marca-acompanante {
@@ -282,33 +321,32 @@ body {
     font-size: 12px;
 }
 
+/* ENCABEZADO EDITABLE */
 
-/* =====================================================
-   ENCABEZADO EDITABLE
-===================================================== */
 .encabezado-editable [contenteditable="true"] {
     outline: none;
     cursor: text;
 }
+
 .encabezado-editable [contenteditable="true"]:focus {
-    outline: 1px dashed #4472c4;
-    background: #fffbea;
+    outline: 1px dashed #347F91;
+    background: #EAF7F7;
 }
+
 .aviso-edicion {
     display: block;
     margin-top: 5px;
-    color: #777;
+    color: #647985;
     font-size: 10px;
     font-weight: normal;
 }
 
-/* =====================================================
-   PIE DEL CENSO BASADO EN pie_formato.xlsx
-===================================================== */
+/* PIE DEL CENSO */
+
 .pie-censo {
     margin-top: 12px;
-    border: 1px solid #555;
-    background: #fff;
+    border: 1px solid #B8CDD4;
+    background: #FFFFFF;
     display: grid;
     grid-template-columns: minmax(230px, 1.1fr) minmax(300px, 1.5fr) minmax(130px, .65fr) minmax(300px, 1.4fr);
     width: 100%;
@@ -316,62 +354,76 @@ body {
     font-size: 10px;
     line-height: 1.35;
 }
+
 .pie-columna {
     padding: 7px;
-    border-right: 1px solid #777;
+    border-right: 1px solid #DCE9ED;
     min-width: 0;
 }
+
 .pie-columna:last-child {
     border-right: 0;
 }
+
 .pie-censo h3 {
     font-size: 10px;
     margin: 4px 0 5px;
     font-weight: bold;
+    color: #285F70;
 }
+
 .pie-censo p {
     margin: 3px 0 6px;
 }
+
 .pie-parentesco {
-    border-top: 1px solid #999;
+    border-top: 1px solid #DCE9ED;
     margin-top: 8px;
     padding-top: 5px;
 }
+
 .parentesco-lista {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 3px 8px;
     margin-top: 5px;
 }
+
 .derechohabiencia-lista {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 3px 8px;
     margin-bottom: 8px;
 }
+
 .pie-codigos p {
-    border-bottom: 1px solid #ddd;
+    border-bottom: 1px solid #E3EAED;
     padding: 2px 0;
 }
+
 .pie-observaciones {
     display: flex;
     flex-direction: column;
     gap: 8px;
 }
+
 .pie-observaciones [contenteditable="true"],
 .pie-columna [contenteditable="true"] {
     outline: none;
     cursor: text;
 }
+
 .pie-observaciones [contenteditable="true"]:focus,
 .pie-columna [contenteditable="true"]:focus {
-    outline: 1px dashed #4472c4;
-    background: #fffbea;
+    outline: 1px dashed #347F91;
+    background: #EAF7F7;
 }
+
 .nota-vph,
 .nota-influenza {
     text-align: justify;
 }
+
 .firmas {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -379,6 +431,7 @@ body {
     margin-top: auto;
     padding-top: 12px;
 }
+
 .firma {
     text-align: center;
     display: flex;
@@ -386,23 +439,28 @@ body {
     justify-content: flex-end;
     gap: 5px;
 }
+
 .linea-firma {
     min-height: 28px;
-    border-bottom: 1px solid #333;
+    border-bottom: 1px solid #536A78;
 }
+
 .firma strong {
     font-size: 9px;
 }
+
 .nota-edicion-pie {
     margin: 5px 0 12px;
-    color: #777;
+    color: #647985;
     font-size: 10px;
 }
+
 @media print {
     body {
-        background: #fff;
+        background: #FFFFFF;
         padding: 0;
     }
+
     .barra-superior,
     .panel-filtros,
     .aviso-edicion,
@@ -410,15 +468,18 @@ body {
     .resultado-individual {
         display: none !important;
     }
+
     .encabezado-oficial,
     .pie-censo {
         break-inside: avoid;
     }
+
     .encabezado-editable [contenteditable="true"]:focus,
     .pie-censo [contenteditable="true"]:focus {
         outline: none;
         background: transparent;
     }
+
     .tabla-scroll {
         overflow: visible;
     }

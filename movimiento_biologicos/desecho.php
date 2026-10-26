@@ -50,7 +50,7 @@ if($_SERVER["REQUEST_METHOD"] == "POST") {
     $id_lote = $_POST["id_lote"] ?? "";
     $cantidad_dosis = $_POST["cantidad_dosis"] ?? "";
     $fecha_movimiento = $_POST["fecha_movimiento"] ?? "";
-
+    $observaciones = trim($_POST["observaciones"] ?? "");
 
     // =====================================================
     // VALIDAR CAMPOS
@@ -163,35 +163,27 @@ if($_SERVER["REQUEST_METHOD"] == "POST") {
     $necesidad = 0;
 
     $sqlMovimiento = "INSERT INTO MOVIMIENTO_BIOLOGICO (
-                        id_unidad,
-                        id_lote,
-                        tipo_movimiento,
-                        cantidad_frascos,
-                        cantidad_dosis,
-                        fecha_movimiento,
-                        necesidad
-                      )
-                      VALUES (?, ?, ?, ?, ?, ?, ?)";
+                    id_unidad, id_lote, tipo_movimiento, cantidad_frascos,
+                    cantidad_dosis, fecha_movimiento, necesidad, observaciones
+                  )
+                  VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
 
     $stmtMovimiento = $conexion->prepare($sqlMovimiento);
 
-    if(!$stmtMovimiento) {
-        die(
-            "Error al preparar movimiento: "
-            . $conexion->error
-        );
+    if (!$stmtMovimiento) {
+        die("Error al preparar movimiento: " . $conexion->error);
     }
 
-
     $stmtMovimiento->bind_param(
-        "iisdisi",
+        "iisdisis",
         $usuario["id_unidad"],
         $id_lote,
         $tipo_movimiento,
         $cantidad_frascos,
         $cantidad_dosis,
         $fecha_movimiento,
-        $necesidad
+        $necesidad,
+        $observaciones
     );
 
 
@@ -243,10 +235,6 @@ if($_SERVER["REQUEST_METHOD"] == "POST") {
 
 <form method="POST">
 
-
-    <!-- =================================================
-         LOTE
-    ================================================== -->
 
     <label>
 
@@ -346,6 +334,15 @@ if($_SERVER["REQUEST_METHOD"] == "POST") {
     >
 
 
+    <br>
+    <br>
+    <label>MOTIVO DEL DESECHO</label>
+    <textarea
+        name="observaciones"
+        rows="5"
+        cols="50"
+        maxlength="500"
+    ></textarea>
     <br>
     <br>
 
