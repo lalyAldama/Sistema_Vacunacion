@@ -16,12 +16,15 @@ $mesValido = is_string($mesSolicitado)
     && checkdate((int)$partes[2], 1, (int)$partes[1])
     && $mesSolicitado <= $mesActual;
 $mes = $mesValido ? $mesSolicitado : $mesActual;
+$puedeRegistrarMovimientos = $mes === $mesActual;
 $inicioMes = $mes . "-01";
 $finMes = date("Y-m-d", strtotime($inicioMes . " +1 month"));
 $inicioAnio = substr($mes, 0, 4) . "-01-01";
 $nombreMes = date("F Y", strtotime($inicioMes));
 $meses = ["January"=>"enero", "February"=>"febrero", "March"=>"marzo", "April"=>"abril", "May"=>"mayo", "June"=>"junio", "July"=>"julio", "August"=>"agosto", "September"=>"septiembre", "October"=>"octubre", "November"=>"noviembre", "December"=>"diciembre"];
 $nombreMes = strtr($nombreMes, $meses);
+$nombreMesEncabezado = mb_strtoupper(strtr(date("F", strtotime($inicioMes)), $meses), "UTF-8");
+$anioEncabezado = substr($mes, 0, 4);
 
 $stmtUnidad = $conexion->prepare("SELECT id_unidad FROM USUARIO WHERE id_usuario = ?");
 $stmtUnidad->bind_param("i", $_SESSION["id_usuario"]);
@@ -235,6 +238,73 @@ $lotesDonacionMes = cargarFilas(
     $finMes
 );
 
+$sqlJeringas = "SELECT j.id_jeringa, j.tipo,
+                       COALESCE(SUM(CASE
+                           WHEN mj.fecha_movimiento < ? THEN
+                               CASE WHEN mj.tipo_movimiento = 'Entrada' THEN mj.cantidad_jeringas ELSE -mj.cantidad_jeringas END
+                           ELSE 0
+                       END), 0) AS existencia_inicial,
+                       COALESCE(SUM(CASE
+                           WHEN mj.fecha_movimiento >= ? AND mj.fecha_movimiento < ?
+                                AND mj.tipo_movimiento = 'Entrada' THEN mj.cantidad_jeringas
+                           ELSE 0
+                       END), 0) AS entradas_mes,
+                       COALESCE(SUM(CASE
+                           WHEN mj.fecha_movimiento >= ? AND mj.fecha_movimiento < ?
+                                AND mj.tipo_movimiento = 'Uso' THEN mj.cantidad_jeringas
+                           ELSE 0
+                       END), 0) AS usos_mes,
+                       COALESCE(SUM(CASE
+                           WHEN mj.fecha_movimiento >= ? AND mj.fecha_movimiento < ?
+                                AND mj.tipo_movimiento = 'Desecho' THEN mj.cantidad_jeringas
+                           ELSE 0
+                       END), 0) AS desechos_mes,
+                       COALESCE(SUM(CASE
+                           WHEN mj.fecha_movimiento >= ? AND mj.fecha_movimiento < ?
+                                AND mj.tipo_movimiento = 'Uso' THEN mj.cantidad_jeringas
+                           ELSE 0
+                       END), 0) AS usos_anio,
+                       COALESCE(SUM(CASE
+                           WHEN mj.fecha_movimiento < ? THEN
+                               CASE WHEN mj.tipo_movimiento = 'Entrada' THEN mj.cantidad_jeringas ELSE -mj.cantidad_jeringas END
+                           ELSE 0
+                       END), 0) AS existencia_final,
+                       COALESCE((
+                           SELECT mj2.necesidad
+                           FROM MOVIMIENTO_JERINGA mj2
+                           WHERE mj2.id_jeringa = j.id_jeringa
+                             AND mj2.id_unidad = ?
+                             AND mj2.fecha_movimiento < ?
+                           ORDER BY mj2.fecha_movimiento DESC, mj2.id_movimiento_jeringa DESC
+                           LIMIT 1
+                       ), 0) AS necesidad
+                FROM JERINGA j
+                LEFT JOIN MOVIMIENTO_JERINGA mj
+                    ON mj.id_jeringa = j.id_jeringa
+                   AND mj.id_unidad = ?
+                   AND mj.fecha_movimiento < ?
+                GROUP BY j.id_jeringa, j.tipo
+                ORDER BY j.tipo";
+$jeringas = cargarFilas(
+    $conexion,
+    $sqlJeringas,
+    str_repeat("s", 10) . "isis",
+    $inicioMes,
+    $inicioMes,
+    $finMes,
+    $inicioMes,
+    $finMes,
+    $inicioMes,
+    $finMes,
+    $inicioAnio,
+    $finMes,
+    $finMes,
+    $idUnidad,
+    $finMes,
+    $idUnidad,
+    $finMes
+);
+
 
 function mapaPorBiologico($filas, $campo = "total", $idCampo = "id_biologico") {
     $mapa = [];
@@ -296,6 +366,7 @@ function fmt($valor) { return number_format((float)$valor, 2, ".", ""); }
         .tabla-movimiento th, .tabla-movimiento td { border: 1px solid #333; padding: 6px; text-align: center; vertical-align: middle; }
         .tabla-movimiento th { background: #f1f1f1; }
         .tabla-movimiento thead tr:first-child th:first-child { background: #fff200; }
+        .tabla-jeringas table { min-width: 950px; }
         .tabla-movimiento td.biologico { text-align: center; }
         .detalle-lote { display: block; white-space: nowrap; }
         .saldo-negativo { color: #b00020; font-weight: bold; }
@@ -332,23 +403,154 @@ function fmt($valor) { return number_format((float)$valor, 2, ".", ""); }
         .movimiento .detalle-enlace {
             color: inherit;
         }
+        .botones button:disabled {
+            background: #87949a;
+            cursor: not-allowed;
+            opacity: 0.7;
+        }
+        .encabezado-institucional {
+            display: grid;
+            grid-template-columns: repeat(12, minmax(0, 1fr));
+            gap: 0 10px;
+            margin: 0 0 22px;
+            padding: 14px;
+            border: 1px solid #DCE9ED;
+            border-left: 5px solid #347F91;
+            border-radius: 8px;
+            background: #fff;
+            color: #34495E;
+            box-shadow: 0 2px 8px rgba(40, 95, 112, 0.08);
+        }
+        .encabezado-institucional h2 {
+            grid-column: 1 / -1;
+            margin: 0 0 6px;
+            padding: 2px 0 8px;
+            border-bottom: 2px solid #347F91;
+            color: #285F70;
+            font-size: 14px;
+            text-align: center;
+        }
+        .campo-encabezado {
+            display: flex;
+            align-items: center;
+            min-width: 0;
+            gap: 6px;
+            padding: 5px 2px;
+            border-bottom: 1px solid #DCE9ED;
+        }
+        .campo-encabezado label {
+            flex: 0 0 auto;
+            margin: 0;
+            color: #285F70;
+            font-size: 10px;
+            white-space: nowrap;
+        }
+        .campo-encabezado input {
+            min-width: 0;
+            min-height: 25px;
+            padding: 2px 4px;
+            border: 0;
+            border-radius: 0;
+            border-bottom: 2px solid #347F91;
+            background: transparent;
+            color: #34495E;
+            font-size: 12px;
+            font-weight: 600;
+            text-align: center;
+        }
+        .campo-encabezado input:focus {
+            outline: 1px solid #347F91;
+            box-shadow: none;
+        }
+        .campo-entidad { grid-column: span 6; }
+        .campo-region { grid-column: span 3; }
+        .campo-unidad { grid-column: span 6; }
+        .campo-clues { grid-column: span 6; }
+        .campo-elabora { grid-column: span 6; }
+        .campo-puesto { grid-column: span 6; }
+        .campo-periodo { grid-column: span 2; }
+        .estado-encabezado {
+            grid-column: 1 / -1;
+            margin: 4px 0 0;
+            color: #52636b;
+            font-size: 11px;
+            text-align: right;
+        }
+        @media (max-width: 700px) {
+            .campo-encabezado { grid-column: span 6; }
+            .campo-entidad, .campo-unidad, .campo-elabora { grid-column: 1 / -1; }
+        }
+        @media print {
+            .campo-encabezado input {
+                border: 0;
+                border-bottom: 2px solid #347F91;
+                appearance: none;
+                -webkit-appearance: none;
+            }
+            .estado-encabezado { display: none; }
+        }
     </style>
 </head>
 <body>
-    <h1>MOVIMIENTO DE BIOLÓGICOS</h1>
-    <div class="botones">
-        <a href="entrada.php"><button>+ NUEVA ENTRADA</button></a>
-        <a href="desecho.php"><button>+ NUEVO DESECHO</button></a>
-        <a href="donacion.php"><button>+ NUEVA DONACIÓN</button></a>
-    </div>
-    <form class="filtro-informe" method="get">
+    <h1>MOVIMIENTO DE BIOLÓGICOS Y JERINGAS</h1>
+    <section class="encabezado-institucional" aria-label="Encabezado institucional editable">
+        <h2>SERVICIOS DE SALUD DE CHIHUAHUA</h2>
+        <div class="campo-encabezado campo-entidad">
+            <label for="encabezado-entidad">ENTIDAD FEDERATIVA</label>
+            <input id="encabezado-entidad" data-encabezado="entidad" value="CHIHUAHUA">
+        </div>
+        <div class="campo-encabezado campo-region">
+            <label for="encabezado-region">REGIÓN</label>
+            <input id="encabezado-region" data-encabezado="region" value="3">
+        </div>
+        <div class="campo-encabezado campo-unidad">
+            <label for="encabezado-unidad">UNIDAD</label>
+            <input id="encabezado-unidad" data-encabezado="unidad" value="CENTRO DE SALUD COLONIA ALMANCÉN">
+        </div>
+        <div class="campo-encabezado campo-clues">
+            <label for="encabezado-clues">CLUES</label>
+            <input id="encabezado-clues" data-encabezado="clues" value="CHSSA001685">
+        </div>
+        <div class="campo-encabezado campo-elabora">
+            <label for="encabezado-elabora">ELABORA</label>
+            <input id="encabezado-elabora" data-encabezado="elabora" value="ENFRA. Remedios Díaz García">
+        </div>
+        <div class="campo-encabezado campo-puesto">
+            <label for="encabezado-puesto">PUESTO</label>
+            <input id="encabezado-puesto" data-encabezado="puesto" value="ENFERMERO">
+        </div>
+        <div class="campo-encabezado campo-periodo">
+            <label for="encabezado-mes">MES</label>
+            <input id="encabezado-mes" value="<?php echo h($nombreMesEncabezado); ?>" readonly>
+        </div>
+        <div class="campo-encabezado campo-periodo">
+            <label for="encabezado-anio">AÑO</label>
+            <input id="encabezado-anio" value="<?php echo h($anioEncabezado); ?>" readonly>
+        </div>
+
+    </section>
+        <form class="filtro-informe" method="get">
         <label for="mes"><strong>MES DEL INFORME:</strong></label>
         <input id="mes" name="mes" type="month" max="<?php echo h($mesActual); ?>" value="<?php echo h($mes); ?>">
         <button type="submit">CONSULTAR</button>
     </form>
-    <p><strong>PERIODO:</strong> <?php echo h(mb_strtoupper($nombreMes, "UTF-8")); ?></p>
-    <p class="nota-reemplazo">Las aplicaciones se descuentan del biológico del lote utilizado físicamente, aunque se haya indicado otro biológico como reemplazo.</p>
 
+    <h2>MOVIMIENTO DE BIOLÓGICOS</h2>
+    <div class="botones">
+        <?php if ($puedeRegistrarMovimientos): ?>
+        <a href="entrada.php"><button>+ NUEVA ENTRADA</button></a>
+        <a href="desecho.php"><button>+ NUEVO DESECHO</button></a>
+        <a href="donacion.php"><button>+ NUEVA DONACIÓN</button></a>
+        <?php else: ?>
+        <button type="button" disabled>+ NUEVA ENTRADA</button>
+        <button type="button" disabled>+ NUEVO DESECHO</button>
+        <button type="button" disabled>+ NUEVA DONACIÓN</button>
+        <?php endif; ?>
+    </div>
+    <?php if (!$puedeRegistrarMovimientos): ?>
+        <p role="status">Estás consultando un periodo anterior. Los registros están deshabilitados para proteger el informe histórico.</p>
+    <?php endif; ?>
+    <p><strong>PERIODO:</strong> <?php echo h(mb_strtoupper($nombreMes, "UTF-8")); ?></p>
     <div class="contenedor-tabla tabla-movimiento">
         <table>
             <thead>
@@ -484,5 +686,122 @@ function fmt($valor) { return number_format((float)$valor, 2, ".", ""); }
             </tbody>
         </table>
     </div>
+    <h2 id="jeringas">MOVIMIENTO DE JERINGAS</h2>
+    <?php if (($_GET["jeringas"] ?? "") === "registrado"): ?>
+    <?php endif; ?>
+    <div class="botones">
+        <?php if ($puedeRegistrarMovimientos): ?>
+        <a href="entrada_jeringa.php"><button>+ NUEVA ENTRADA DE JERINGAS</button></a>
+        <a href="salida_jeringa.php"><button>+ NUEVA SALIDA DE JERINGAS</button></a>
+        <?php else: ?>
+        <button type="button" disabled>+ NUEVA ENTRADA DE JERINGAS</button>
+        <button type="button" disabled>+ NUEVA SALIDA DE JERINGAS</button>
+        <?php endif; ?>
+    </div>
+    <div class="contenedor-tabla tabla-movimiento tabla-jeringas">
+        <table>
+            <thead>
+                <tr>
+                    <th rowspan="2">EXISTENCIA ANTERIOR</th>
+                    <th rowspan="2">JERINGA</th>
+                    <th colspan="4">JERINGAS RECIBIDAS</th>
+                    <th colspan="3">SALIDA DE JERINGAS</th>
+                    <th colspan="3">EXISTENCIA FINAL DE JERINGAS</th>
+                    <th rowspan="2">NECESIDAD</th>
+                </tr>
+                <tr>
+                    <th>JERINGAS</th>
+                    <th>LOTE</th>
+                    <th>CADUCIDAD</th>
+                    <th>EN EL MES</th>
+                    <th>USADAS EN EL MES</th>
+                    <th>DESECHADAS</th>
+                    <th>USADAS EN EL AÑO</th>
+                    <th>CANTIDAD UNIDAD</th>
+                    <th>LOTE</th>
+                    <th>CADUCIDAD</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php foreach ($jeringas as $jeringa): ?>
+                <tr>
+                    <td class="<?php echo (int)$jeringa["existencia_inicial"] < 0 ? "saldo-negativo" : ""; ?>">
+                        <?php echo (int)$jeringa["existencia_inicial"]; ?>
+                    </td>
+                    <td><?php echo h($jeringa["tipo"]); ?></td>
+                    <td><?php echo (int)$jeringa["entradas_mes"]; ?></td>
+                    <td></td>
+                    <td></td>
+                    <td><?php echo (int)$jeringa["entradas_mes"]; ?></td>
+                    <td><?php echo (int)$jeringa["usos_mes"]; ?></td>
+                    <td><?php echo (int)$jeringa["desechos_mes"]; ?></td>
+                    <td><?php echo (int)$jeringa["usos_anio"]; ?></td>
+                    <td class="<?php echo (int)$jeringa["existencia_final"] < 0 ? "saldo-negativo" : ""; ?>">
+                        <?php echo (int)$jeringa["existencia_final"]; ?>
+                    </td>
+                    <td></td>
+                    <td></td>
+                    <td><?php echo (int)$jeringa["necesidad"]; ?></td>
+                </tr>
+                <?php endforeach; ?>
+                <?php if (!$jeringas): ?>
+                <tr>
+                    <td colspan="13">No hay tipos de jeringa registrados en el catálogo.</td>
+                </tr>
+                <?php endif; ?>
+            </tbody>
+        </table>
+    </div>
+    <script>
+        (function () {
+            const claveAlmacenamiento = "sistema-vacunacion.encabezado-movimiento";
+            const campos = document.querySelectorAll("[data-encabezado]");
+            const estado = document.getElementById("estado-encabezado");
+            const selectorPeriodo = document.getElementById("mes");
+            const campoMes = document.getElementById("encabezado-mes");
+            const campoAnio = document.getElementById("encabezado-anio");
+            const nombresMeses = [
+                "ENERO", "FEBRERO", "MARZO", "ABRIL", "MAYO", "JUNIO",
+                "JULIO", "AGOSTO", "SEPTIEMBRE", "OCTUBRE", "NOVIEMBRE", "DICIEMBRE"
+            ];
+
+            function actualizarPeriodoEncabezado() {
+                const partes = selectorPeriodo.value.split("-");
+                const indiceMes = Number(partes[1]) - 1;
+                if (partes.length === 2 && nombresMeses[indiceMes]) {
+                    campoMes.value = nombresMeses[indiceMes];
+                    campoAnio.value = partes[0];
+                }
+            }
+
+            try {
+                const guardado = JSON.parse(localStorage.getItem(claveAlmacenamiento) || "{}");
+                campos.forEach(function (campo) {
+                    const clave = campo.dataset.encabezado;
+                    if (typeof guardado[clave] === "string") campo.value = guardado[clave];
+                });
+            } catch (error) {
+                estado.textContent = "No se pudieron cargar los datos guardados del encabezado.";
+            }
+
+            actualizarPeriodoEncabezado();
+            selectorPeriodo.addEventListener("change", actualizarPeriodoEncabezado);
+
+            campos.forEach(function (campo) {
+                campo.addEventListener("input", function () {
+                    try {
+                        const datos = {};
+                        campos.forEach(function (entrada) {
+                            datos[entrada.dataset.encabezado] = entrada.value;
+                        });
+                        localStorage.setItem(claveAlmacenamiento, JSON.stringify(datos));
+                        estado.textContent = "Cambios guardados en este navegador.";
+                    } catch (error) {
+                        estado.textContent = "No fue posible guardar los cambios en este navegador.";
+                    }
+                });
+            });
+        })();
+    </script>
 </body>
 </html>
