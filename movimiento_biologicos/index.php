@@ -84,7 +84,7 @@ $catalogo = [
         ["TDPA", ["TDPA"]], ["TDPA/TD", ["TDPA TD", "TDPA/TD"]], ["TDPA/DPT", ["TDPA DPT", "TDPA/DPT"]]
     ]],
     ["grupo"=>"INFLUENZA", "familiaEdad"=>"INFLUENZA", "filas"=>[
-        ["ANTI INFLUENZA ESTACIONAL\nNIÑOS", ["ANTI INFLUENZA ESTACIONAL NINOS", "INFLUENZA ESTACIONAL NINOS", "PRESENTATCCION INFLUENZA PEDIATRICA"]],
+        ["ANTI INFLUENZA ESTACIONAL\nNIÑOS", ["ANTI INFLUENZA ESTACIONAL NINOS", "INFLUENZA ESTACIONAL NINOS", "INFLUENZA ESTACIONAL PEDIATRICA", "ANTI INFLUENZA PEDIATRICA", "PRESENTACION INFLUENZA PEDIATRICA"]],
         ["ANTI INFLUENZA ESTACIONAL\nADULTOS", ["ANTI INFLUENZA ESTACIONAL ADULTOS", "INFLUENZA ESTACIONAL ADULTOS", "PRESENTACION INFLUENZA ADULTOS"]]
     ]],
     ["grupo"=>"COVID PFIZER", "filas"=>[["COVID-19 PFIZER", ["COVID 19 PFIZER", "PFIZER COVID 19"]]]],
@@ -116,6 +116,25 @@ foreach ($catalogo as &$grupo) {
             if (isset($presentacionesPorNombre[$clave])) {
                 $fila["presentaciones"][] = $presentacionesPorNombre[$clave]["id"];
                 $fila["ids"][] = $presentacionesPorNombre[$clave]["biologico"];
+            }
+        }
+        if ($grupo["grupo"] === "INFLUENZA") {
+            $nombreFila = normalizarNombre($fila[0]);
+            $esFilaPediatrica = strpos($nombreFila, "NINOS") !== false
+                || strpos($nombreFila, "PEDIATR") !== false;
+            foreach ($presentacionesPorNombre as $nombrePresentacion => $presentacion) {
+                if (strpos($nombrePresentacion, "INFLUENZA") === false) continue;
+
+                $esPresentacionPediatrica = strpos($nombrePresentacion, "NINO") !== false
+                    || strpos($nombrePresentacion, "PEDIATR") !== false;
+                $esPresentacionAdulta = strpos($nombrePresentacion, "ADULT") !== false;
+                if (
+                    ($esFilaPediatrica && $esPresentacionPediatrica)
+                    || (!$esFilaPediatrica && $esPresentacionAdulta)
+                ) {
+                    $fila["presentaciones"][] = $presentacion["id"];
+                    $fila["ids"][] = $presentacion["biologico"];
+                }
             }
         }
         $fila["ids"] = array_values(array_unique($fila["ids"]));

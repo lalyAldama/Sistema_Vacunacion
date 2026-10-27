@@ -564,6 +564,7 @@ foreach ($vacunasEsquema as $bio) {
             <a href="index.php?censo=1" class="btn btn-censo">CENSO 0–9</a>
             <a href="index.php?censo=2" class="btn btn-censo">CENSO 10–19</a>
             <a href="index.php?censo=3" class="btn btn-censo">ADULTOS Y EMBARAZADAS</a>
+            <a href="influenza.php" class="btn btn-censo">CENSO DE INFLUENZA</a>
         </div>
     </div>
 

@@ -11,6 +11,34 @@ if (!isset($_SESSION['id_usuario'])) {
     exit;
 }
 
+$mesActual = (int)date('n');
+$temporadaActiva = ($mesActual >= 10 || $mesActual <= 3);
+if (!$temporadaActiva) {
+    ?>
+    <!doctype html>
+    <html lang="es">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>Censo de influenza fuera de temporada</title>
+        <link rel="stylesheet" href="css/censo.css">
+    </head>
+    <body>
+        <main class="pagina">
+            <div class="barra-superior">
+                <h1>CENSO NOMINAL DE INFLUENZA</h1>
+            </div>
+            <div class="panel-resultados sin-seleccion" role="status">
+                No estamos en temporada invernal. El censo de influenza está disponible de octubre a marzo.
+            </div>
+            <a class="btn btn-censo" href="index.php">VOLVER AL CENSO</a>
+        </main>
+    </body>
+    </html>
+    <?php
+    exit;
+}
+
 require_once __DIR__ . '/../config/conexion.php';
 
 if (!isset($conexion) || !($conexion instanceof mysqli)) {
@@ -38,6 +66,9 @@ function fechaDMY(?string $fecha): string {
     if (!$fecha || $fecha === '0000-00-00') return '';
     $t = strtotime($fecha);
     return $t ? date('d/m/Y', $t) : '';
+}
+function esFechaDeHoy(?string $fecha): bool {
+    return $fecha !== null && substr($fecha, 0, 10) === date('Y-m-d');
 }
 
 $pacientes = [];
@@ -138,15 +169,13 @@ if ($busqueda !== '') {
     }));
 }
 
-$mesActual = (int)date('n');
-$temporadaActiva = ($mesActual >= 10 || $mesActual <= 3);
 ?>
 <!doctype html>
 <html lang="es">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Censo Nominal, vacunación para la temporada invernal 2025-2026</title>
+<title>Censo Nominal, vacunación para la temporada invernal 2026-2027</title>
 <link rel="stylesheet" href="css/censo.css">
 <style>
 .encabezado-influenza{margin-top:12px;padding:12px;background:#fff;border:1px solid #888;text-align:center;font-size:13px;line-height:1.5}
@@ -166,6 +195,7 @@ $temporadaActiva = ($mesActual >= 10 || $mesActual <= 3);
 .censo-influenza .marca{font-weight:bold}
 .censo-influenza .sin-dato{color:#777}
 .censo-influenza .celda-vacuna{min-width:130px;text-align:left}
+.censo-influenza .aplicacion-hoy{color:#c00;font-weight:700}
 .acciones-influenza{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .aviso-influenza{margin-top:12px;padding:10px;background:#fff8e1;border:1px solid #d6b656}
 .encabezado-editable [contenteditable="true"]{outline:none;cursor:text;border-radius:2px}
@@ -187,13 +217,9 @@ $temporadaActiva = ($mesActual >= 10 || $mesActual <= 3);
         </div>
         <div class="acciones-influenza">
             <a class="btn btn-censo" href="index.php">VOLVER AL CENSO</a>
-            <button class="btn btn-verde" type="button" onclick="window.print()">IMPRIMIR</button>
         </div>
     </div>
 
-    <?php if (!$temporadaActiva): ?>
-        <div class="aviso-influenza">La temporada de influenza suele abarcar de octubre a marzo. Verifica los lineamientos y el periodo activo que indique tu jurisdicción.</div>
-    <?php endif; ?>
     <?php if ($error !== ''): ?>
         <div class="sin-resultados"><?= h($error) ?></div>
     <?php endif; ?>
@@ -318,7 +344,10 @@ $temporadaActiva = ($mesActual >= 10 || $mesActual <= 3);
                     }
                     $mostrarApp = function($app): string {
                         if (!$app) return '';
-                        return h(fechaDMY($app['fecha_aplicacion'] ?? '')) . ' ' . h($app['numero_lote'] ?? '');
+                        $contenido = h(fechaDMY($app['fecha_aplicacion'] ?? '')) . ' ' . h($app['numero_lote'] ?? '');
+                        return esFechaDeHoy($app['fecha_aplicacion'] ?? null)
+                            ? '<span class="aplicacion-hoy">' . $contenido . '</span>'
+                            : $contenido;
                     };
                 ?>
                 <tr>
@@ -330,7 +359,7 @@ $temporadaActiva = ($mesActual >= 10 || $mesActual <= 3);
                     <td><?= $edadAnios === null ? '' : (int)$edadAnios ?></td>
                     <td><?= $edadMesesRestantes === null ? '' : (int)$edadMesesRestantes ?></td>
                     <td><?= h($p['sexo'] ?? '') ?></td>
-                    <td><?= h(fechaDMY($fechaAplicacion)) ?></td>
+                    <td><?= esFechaDeHoy($fechaAplicacion) ? '<span class="aplicacion-hoy">' . h(fechaDMY($fechaAplicacion)) . '</span>' : h(fechaDMY($fechaAplicacion)) ?></td>
                     <td class="domicilio"><?= h($p['calle'] ?? '') ?></td><td><?= h($p['num'] ?? '') ?></td><td class="domicilio"><?= h($p['colonia'] ?? '') ?></td>
                     <td><?= $marcar($tieneObjetivo(['6 a 59', '6-59', 'meses'])) ?></td>
                     <td><?= $marcar($tieneObjetivo(['60 y más', '60+', 'adultos mayores'])) ?></td>

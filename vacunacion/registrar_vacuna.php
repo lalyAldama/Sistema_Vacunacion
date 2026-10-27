@@ -19,6 +19,46 @@ if(!isset($_GET["id"]) || empty($_GET["id"])) {
 
 $id_paciente = $_GET["id"];
 
+function categoriaPresentacion($nombre)
+{
+    $nombre = mb_strtolower((string)$nombre, "UTF-8");
+    $nombre = strtr($nombre, [
+        "á" => "a",
+        "é" => "e",
+        "í" => "i",
+        "ó" => "o",
+        "ú" => "u"
+    ]);
+
+    if (str_contains($nombre, "pediatr")) {
+        return "pediatrica";
+    }
+    if (str_contains($nombre, "adult")) {
+        return "adulta";
+    }
+
+    return "";
+}
+
+function edadActualEnDias($fechaNacimiento)
+{
+    try {
+        $nacimiento = DateTimeImmutable::createFromFormat("!Y-m-d", (string)$fechaNacimiento);
+        $hoy = new DateTimeImmutable("today");
+        if (
+            !$nacimiento ||
+            $nacimiento->format("Y-m-d") !== $fechaNacimiento ||
+            $nacimiento > $hoy
+        ) {
+            return null;
+        }
+
+        return $nacimiento->diff($hoy)->days;
+    } catch (Throwable $e) {
+        return null;
+    }
+}
+
 
 // =========================================================
 // OBTENER PACIENTE + CENSO + ESQUEMA
@@ -61,6 +101,7 @@ if($resultadoPaciente->num_rows === 0) {
 }
 
 $paciente = $resultadoPaciente->fetch_assoc();
+$edadDiasPaciente = edadActualEnDias($paciente["fecha_nacimiento"]);
 
 $stmtPaciente->close();
 
@@ -143,6 +184,36 @@ $resultadoLotes = $conexion->query($sqlLotes);
 if(!$resultadoLotes) {
     die("Error al consultar lotes: " . $conexion->error);
 }
+
+$presentacionesPorBiologico = [];
+$resultadoPresentaciones = $conexion->query(
+    "SELECT id_biologico, nombre_presentacion FROM PRESENTACION"
+);
+if (!$resultadoPresentaciones) {
+    die("Error al consultar presentaciones: " . $conexion->error);
+}
+while ($presentacion = $resultadoPresentaciones->fetch_assoc()) {
+    $idBiologicoPresentacion = (string)$presentacion["id_biologico"];
+    $categoria = categoriaPresentacion($presentacion["nombre_presentacion"]);
+    if ($categoria !== "") {
+        $presentacionesPorBiologico[$idBiologicoPresentacion][$categoria] = true;
+    }
+}
+$resultadoPresentaciones->free();
+
+$lotesArray = [];
+while ($lote = $resultadoLotes->fetch_assoc()) {
+    $lotesArray[] = [
+        "id_lote" => $lote["id_lote"],
+        "id_biologico" => $lote["id_biologico"],
+        "numero_lote" => $lote["numero_lote"],
+        "fecha_caducidad" => $lote["fecha_caducidad"],
+        "nombre_biologico" => $lote["nombre_biologico"],
+        "nombre_presentacion" => $lote["nombre_presentacion"],
+        "categoria_presentacion" => categoriaPresentacion($lote["nombre_presentacion"])
+    ];
+}
+$resultadoLotes->free();
 
 
 // =========================================================
@@ -275,7 +346,8 @@ if($_SERVER["REQUEST_METHOD"] == "POST") {
     // =====================================================
 
     $sqlValidarLote = "SELECT
-                            l.id_lote
+                            l.id_lote,
+                            p.nombre_presentacion
                        FROM LOTE l
                        INNER JOIN PRESENTACION p
                             ON l.id_presentacion = p.id_presentacion
@@ -302,7 +374,26 @@ if($_SERVER["REQUEST_METHOD"] == "POST") {
         die("El lote seleccionado no corresponde a la vacuna seleccionada.");
     }
 
+    $loteValidado = $resultadoValidarLote->fetch_assoc();
     $stmtValidarLote->close();
+
+    $categoriasPresentacion = $presentacionesPorBiologico[(string)$id_biologico] ?? [];
+    if (isset($categoriasPresentacion["pediatrica"], $categoriasPresentacion["adulta"])) {
+        $edadDias = edadActualEnDias($paciente["fecha_nacimiento"]);
+        if ($edadDias === null) {
+            die("No se pudo determinar la edad del paciente para validar la presentación.");
+        }
+
+        $categoriaEsperada = $edadDias <= 7 ? "pediatrica" : "adulta";
+        $categoriaSeleccionada = categoriaPresentacion($loteValidado["nombre_presentacion"]);
+        if ($categoriaSeleccionada !== $categoriaEsperada) {
+            die(
+                $categoriaEsperada === "pediatrica"
+                    ? "Para pacientes de 0 a 7 días debe seleccionar un lote de presentación pediátrica."
+                    : "Para pacientes mayores de 7 días debe seleccionar un lote de presentación adulta."
+            );
+        }
+    }
 
 
     // =====================================================
@@ -584,6 +675,7 @@ if($_SERVER["REQUEST_METHOD"] == "POST") {
     <input
         type="date"
         name="fecha_aplicacion"
+        id="fecha_aplicacion"
         value="<?php echo date('Y-m-d'); ?>"
         required
     >
@@ -734,6 +826,10 @@ if($_SERVER["REQUEST_METHOD"] == "POST") {
 </a>
 
 <script>
+    const edadPacienteEnDias = <?php
+        echo json_encode($edadDiasPaciente, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
+    ?>;
+
     const datosDosis = <?php
         $dosisArray = [];
 
@@ -750,20 +846,11 @@ if($_SERVER["REQUEST_METHOD"] == "POST") {
     ?>;
 
     const datosLotes = <?php
-        $lotesArray = [];
+        echo json_encode($lotesArray, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
+    ?>;
 
-        while($lote = $resultadoLotes->fetch_assoc()) {
-            $lotesArray[] = [
-                "id_lote" => $lote["id_lote"],
-                "id_biologico" => $lote["id_biologico"],
-                "numero_lote" => $lote["numero_lote"],
-                "fecha_caducidad" => $lote["fecha_caducidad"],
-                "nombre_biologico" => $lote["nombre_biologico"],
-                "nombre_presentacion" => $lote["nombre_presentacion"]
-            ];
-        }
-
-        echo json_encode($lotesArray);
+    const presentacionesPorBiologico = <?php
+        echo json_encode($presentacionesPorBiologico, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
     ?>;
 </script>
 
