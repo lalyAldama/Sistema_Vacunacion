@@ -1,6 +1,6 @@
 
 <?php
-session_start();
+require_once __DIR__ . "/../config/seguridad.php";
 
 if (!isset($_SESSION["id_usuario"])) {
     header("Location: ../login.php");
@@ -456,4 +456,3 @@ $esMigrante = (
 <script src="js/censo.js"></script>
 </body>
 </html>
-

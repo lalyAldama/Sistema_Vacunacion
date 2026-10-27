@@ -1,5 +1,7 @@
 <?php
 
+require_once __DIR__ . "/seguridad.php";
+
 $servidor = "localhost";
 $usuario = "root";
 $contrasena = "123456789";

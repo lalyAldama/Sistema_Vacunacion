@@ -1,9 +1,11 @@
 
 <?php
-session_start();
+require_once __DIR__ . "/config/seguridad.php";
 require_once "config/conexion.php";
 
-$mensaje = "";
+$mensaje = isset($_GET["sesion"]) && $_GET["sesion"] === "expirada"
+    ? "Tu sesión expiró. Inicia sesión nuevamente."
+    : "";
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $nombre_usuario = $_POST["nombre_usuario"];
@@ -31,11 +33,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $usuario = $resultado->fetch_assoc();
 
         if (password_verify($contrasena, $usuario["contrasena"])) {
+            session_regenerate_id(true);
             $_SESSION["id_usuario"] = $usuario["id_usuario"];
             $_SESSION["nombre_usuario"] = $usuario["nombre_usuario"];
             $_SESSION["nombre"] = $usuario["nombre"];
             $_SESSION["id_rol"] = $usuario["id_rol"];
             $_SESSION["nombre_rol"] = $usuario["nombre_rol"];
+            $_SESSION["ultima_actividad"] = time();
 
             header("Location: menu.php");
             exit();

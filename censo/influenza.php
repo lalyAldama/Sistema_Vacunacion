@@ -4,7 +4,7 @@
  * Archivo independiente: no modifica index.php ni censo.php.
  * Requiere la conexión existente en ../config/conexion.php y mysqli $conexion.
  */
-session_start();
+require_once __DIR__ . "/../config/seguridad.php";
 
 if (!isset($_SESSION['id_usuario'])) {
     header('Location: ../index.php');
