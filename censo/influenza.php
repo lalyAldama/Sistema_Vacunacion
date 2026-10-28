@@ -74,7 +74,6 @@ function esFechaDeHoy(?string $fecha): bool {
 $pacientes = [];
 $error = '';
 
-/* Se consulta PACIENTE una sola vez: el censo especial no crea ni duplica pacientes. */
 $sqlPacientes = "SELECT p.id_paciente, p.ap_pat, p.ap_mat, p.nombres,
                         p.fecha_nacimiento, p.sexo, p.calle, p.num, p.colonia,
                         p.telefono_paciente, p.embarazo, p.personal_salud,
@@ -178,9 +177,19 @@ if ($busqueda !== '') {
 <title>Censo Nominal, vacunación para la temporada invernal 2026-2027</title>
 <link rel="stylesheet" href="css/censo.css">
 <style>
-.encabezado-influenza{margin-top:12px;padding:12px;background:#fff;border:1px solid #888;text-align:center;font-size:13px;line-height:1.5}
-.datos-administrativos{display:grid;grid-template-columns:repeat(4,minmax(130px,1fr));gap:6px 14px;text-align:left;margin-top:10px}
-.datos-administrativos div{border-bottom:1px solid #aaa;min-height:23px}
+.encabezado-influenza{margin:12px 0 16px;color:#111;font-family:Arial,sans-serif}
+.cabecera-superior-influenza{display:flex;flex-direction:column;align-items:stretch;gap:5px}
+.titulos-influenza{text-align:center;font-size:10px;font-weight:bold;line-height:1.35;padding:0 4px}
+.titulos-influenza strong{display:block;margin-bottom:3px}
+.logos-institucionales-influenza{display:block;width:48%;max-width:620px;height:auto;max-height:38px;object-fit:contain;object-position:right center;align-self:flex-end}
+.datos-administrativos{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));border:1px solid #777;font-size:9px}
+.bloque-admin-influenza{min-width:0;padding:3px 5px}
+.dato-admin-influenza{display:flex;align-items:center;gap:4px;min-width:0;min-height:22px;border-bottom:1px solid #777;padding:2px 1px}
+.bloque-admin-influenza .dato-admin-influenza:last-child{border-bottom:0}
+.dato-admin-influenza>span{flex:0 0 68px;font-size:8px;font-weight:bold}
+.dato-admin-influenza .admin-valor{flex:1;min-width:0;min-height:17px;border-bottom:1px solid #555;padding:1px 3px;overflow-wrap:anywhere}
+.datos-inferiores-influenza{grid-column:1/-1;display:grid;grid-template-columns:.8fr .8fr 1.3fr 1fr;border-top:1px solid #777;padding:3px 5px;gap:5px}
+.datos-inferiores-influenza .dato-admin-influenza{border:0}
 .tabla-scroll{overflow-x:auto}
 .censo-influenza{border-collapse:collapse;width:max-content;min-width:2600px;table-layout:fixed;font-size:10px;background:#fff}
 .censo-influenza th,.censo-influenza td{border:1px solid #555;padding:3px;text-align:center;vertical-align:middle;overflow-wrap:anywhere}
@@ -201,10 +210,7 @@ if ($busqueda !== '') {
 .encabezado-editable [contenteditable="true"]{outline:none;cursor:text;border-radius:2px}
 .encabezado-editable [contenteditable="true"]:hover{background:#fffbea;outline:1px dashed #aaa}
 .encabezado-editable [contenteditable="true"]:focus{background:#fffbea;outline:1px dashed #4472c4}
-.ayuda-edicion{font-size:10px;color:#777;margin-top:7px}
-.botones-edicion{display:flex;gap:7px;justify-content:flex-end;margin-top:7px}
-@media print{.ayuda-edicion,.botones-edicion{display:none!important}}
-@media(max-width:700px){.datos-administrativos{grid-template-columns:1fr 1fr}}
+@media(max-width:800px){.datos-administrativos{grid-template-columns:1fr}.bloque-admin-influenza,.datos-inferiores-influenza{grid-column:1}.datos-inferiores-influenza{grid-template-columns:1fr 1fr}.logos-institucionales-influenza{width:72%;max-width:100%;max-height:34px}}
 @media print{body{background:#fff;padding:0}.barra-superior,.panel-filtros,.aviso-influenza,.pie-influenza{display:none!important}.encabezado-influenza{break-inside:avoid}.tabla-scroll{overflow:visible}.censo-influenza{font-size:8px}}
 </style>
 </head>
@@ -213,7 +219,6 @@ if ($busqueda !== '') {
     <div class="barra-superior">
         <div>
             <h1>CENSO NOMINAL DE INFLUENZA</h1>
-            <div class="unidad">Vacunación para la temporada invernal 2025–2026</div>
         </div>
         <div class="acciones-influenza">
             <a class="btn btn-censo" href="index.php">VOLVER AL CENSO</a>
@@ -226,34 +231,42 @@ if ($busqueda !== '') {
 
     <div class="panel-filtros">
         <form class="buscador" method="get" action="influenza.php">
-            <input type="text" name="buscar" value="<?= h($busqueda) ?>" placeholder="Buscar por nombre o domicilio">
+            <input type="text" name="buscar" value="<?= h($busqueda) ?>" placeholder="Buscar por nombre o apellido">
             <button class="btn btn-azul" type="submit">BUSCAR</button>
         </form>
     </div>
 
-    <div class="encabezado-influenza encabezado-editable" id="encabezadoEditable">
-        <strong contenteditable="true" data-edit-key="institucion-linea1">Subsecretaría de Políticas de Salud y Bienestar Poblacional</strong><br>
-        <span contenteditable="true" data-edit-key="institucion-linea2">Centro Nacional para la Salud de la Infancia y la Adolescencia</span><br>
-        <span contenteditable="true" data-edit-key="institucion-linea3">Programa de Vacunación Universal</span><br>
-        <strong contenteditable="true" data-edit-key="titulo-formato">Censo Nominal, vacunación para la temporada invernal 2025-2026</strong>
+    <section class="encabezado-influenza encabezado-editable" id="encabezadoEditable">
+        <div class="cabecera-superior-influenza">
+            <div class="titulos-influenza">
+                <strong>Subsecretaría de Políticas de Salud y Bienestar Poblacional</strong>
+                <div>Centro Nacional para la Salud de la Infancia y la Adolescencia</div>
+                <div>Programa de Vacunación Universal</div>
+                <strong>Censo Nominal, vacunación para la temporada invernal 2026-2027</strong>
+            </div>
+            <img class="logos-institucionales-influenza" src="img/encabezado-censia.png" alt="Logotipos institucionales de salud">
+        </div>
         <div class="datos-administrativos">
-            <div>Entidad Federativa: <strong contenteditable="true" data-edit-key="entidad">CHIHUAHUA</strong></div>
-            <div>Institución: <strong contenteditable="true" data-edit-key="institucion">SSCH</strong></div>
-            <div>Jurisdicción/Distrito de Salud/Delegación: <strong contenteditable="true" data-edit-key="jurisdiccion">3 PARRAL</strong></div>
-            <div>Municipio: <strong contenteditable="true" data-edit-key="municipio">HIDALGO DEL PARRAL</strong></div>
-            <div>Localidad: <strong contenteditable="true" data-edit-key="localidad">HIDALGO DEL PARRAL</strong></div>
-            <div>Unidad de Salud: <strong contenteditable="true" data-edit-key="unidad">________________</strong></div>
-            <div>AGEB: <strong contenteditable="true" data-edit-key="ageb">__________</strong></div>
-            <div>Sector: <strong contenteditable="true" data-edit-key="sector">__________</strong></div>
-            <div>Fecha (dd/mm/aaaa): <strong contenteditable="true" data-edit-key="fecha"><?= date('d/m/Y') ?></strong></div>
-            <div>Nombre del vacunador: <strong contenteditable="true" data-edit-key="vacunador">____________________</strong></div>
+            <div class="bloque-admin-influenza">
+                <div class="dato-admin-influenza"><span>ENTIDAD FEDERATIVA</span><strong class="admin-valor" contenteditable="true" data-edit-key="entidad">CHIHUAHUA</strong></div>
+                <div class="dato-admin-influenza"><span>INSTITUCIÓN</span><strong class="admin-valor" contenteditable="true" data-edit-key="institucion">SSCH</strong></div>
+            </div>
+            <div class="bloque-admin-influenza">
+                <div class="dato-admin-influenza"><span>JURISDICCIÓN</span><strong class="admin-valor" contenteditable="true" data-edit-key="jurisdiccion">3 PARRAL</strong></div>
+                <div class="dato-admin-influenza"><span>MUNICIPIO</span><strong class="admin-valor" contenteditable="true" data-edit-key="municipio">HIDALGO DEL PARRAL</strong></div>
+            </div>
+            <div class="bloque-admin-influenza">
+                <div class="dato-admin-influenza"><span>LOCALIDAD</span><strong class="admin-valor" contenteditable="true" data-edit-key="localidad">HIDALGO DEL PARRAL</strong></div>
+                <div class="dato-admin-influenza"><span>UNIDAD DE SALUD</span><strong class="admin-valor" contenteditable="true" data-edit-key="unidad">________________</strong></div>
+            </div>
+            <div class="datos-inferiores-influenza">
+                <div class="dato-admin-influenza"><span>AGEB</span><strong class="admin-valor" contenteditable="true" data-edit-key="ageb">__________</strong></div>
+                <div class="dato-admin-influenza"><span>SECTOR</span><strong class="admin-valor" contenteditable="true" data-edit-key="sector">__________</strong></div>
+                <div class="dato-admin-influenza"><span>FECHA</span><strong class="admin-valor" contenteditable="true" data-edit-key="fecha"><?= date('d/m/Y') ?></strong></div>
+                <div class="dato-admin-influenza"><span>NOMBRE DEL VACUNADOR</span><strong class="admin-valor" contenteditable="true" data-edit-key="vacunador">____________________</strong></div>
+            </div>
         </div>
-        <div class="ayuda-edicion">Puedes hacer clic sobre los textos del encabezado para editarlos. Los cambios se guardan en este navegador.</div>
-        <div class="botones-edicion">
-            <button class="btn btn-azul" type="button" id="guardarEncabezado">GUARDAR ENCABEZADO</button>
-            <button class="btn btn-censo" type="button" id="restaurarEncabezado">RESTAURAR TEXTO ORIGINAL</button>
-        </div>
-    </div>
+    </section>
 
     <div class="tabla-scroll">
     <table class="censo-influenza">
@@ -395,44 +408,25 @@ if ($busqueda !== '') {
     </div>
 </div>
 <script>
-    (function () {
-    const contenedor = document.getElementById('encabezadoEditable');
-    if (!contenedor) return;
-    const elementos = Array.from(contenedor.querySelectorAll('[data-edit-key]'));
-    const prefijo = 'censo_influenza_encabezado_v1_';
-    const originales = new Map(elementos.map(el => [el.dataset.editKey, el.innerHTML]));
-
-    function guardarCambios(mostrarAviso) {
-        try {
-            elementos.forEach(el => {
-                localStorage.setItem(prefijo + el.dataset.editKey, el.innerHTML);
-            });
-            if (mostrarAviso) alert('Encabezado guardado en este navegador.');
-        } catch (e) {
-            if (mostrarAviso) alert('No fue posible guardar automáticamente. El navegador puede estar bloqueando el almacenamiento local.');
+document.querySelectorAll("#encabezadoEditable [data-edit-key]").forEach(function (campo) {
+    var clave = "censo_admin_influenza_" + campo.getAttribute("data-edit-key");
+    try {
+        var guardado = localStorage.getItem(clave);
+        if (guardado === null) {
+            var anterior = localStorage.getItem(
+                "censo_influenza_encabezado_v1_" + campo.getAttribute("data-edit-key")
+            );
+            if (anterior !== null) {
+                guardado = new DOMParser().parseFromString(anterior, "text/html").body.textContent;
+                localStorage.setItem(clave, guardado);
+            }
         }
-    }
-
-    elementos.forEach(el => {
-        try {
-            const guardado = localStorage.getItem(prefijo + el.dataset.editKey);
-            if (guardado !== null) el.innerHTML = guardado;
-        } catch (e) {}
-        el.addEventListener('input', () => guardarCambios(false));
-        el.addEventListener('blur', () => guardarCambios(false));
+        if (guardado !== null) campo.textContent = guardado;
+    } catch (error) {}
+    campo.addEventListener("input", function () {
+        try { localStorage.setItem(clave, campo.textContent); } catch (error) {}
     });
-
-    document.getElementById('guardarEncabezado')?.addEventListener('click', () => guardarCambios(true));
-    document.getElementById('restaurarEncabezado')?.addEventListener('click', () => {
-        if (!confirm('¿Restaurar el encabezado a los textos originales?')) return;
-        elementos.forEach(el => {
-            el.innerHTML = originales.get(el.dataset.editKey) || '';
-            try { localStorage.removeItem(prefijo + el.dataset.editKey); } catch (e) {}
-        });
-        alert('Se restauraron los textos originales del encabezado.');
-    });
-})();
-
+});
 </script>
 </body>
 </html>

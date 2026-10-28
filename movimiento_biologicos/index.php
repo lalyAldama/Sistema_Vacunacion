@@ -185,7 +185,8 @@ if ($idTdpa !== null && $idDpt !== null) {
 
 $sqlReemplazosMes = "SELECT av.id_lote, av.fecha_aplicacion,
                             eb.id_biologico AS id_biologico_indicado,
-                            p.id_biologico AS id_biologico_lote
+                            p.id_biologico AS id_biologico_lote,
+                            b.nombre_biologico AS nombre_biologico_reemplazo
                      FROM APLICACION_VACUNA av
                      INNER JOIN ESQUEMA_BIOLOGICO_DOSIS ebd
                          ON ebd.id_esquema_biologico_dosis = av.id_esquema_biologico_dosis
@@ -193,6 +194,7 @@ $sqlReemplazosMes = "SELECT av.id_lote, av.fecha_aplicacion,
                          ON eb.id_esquema_biologico = ebd.id_esquema_biologico
                      INNER JOIN LOTE l ON l.id_lote = av.id_lote
                      INNER JOIN PRESENTACION p ON p.id_presentacion = l.id_presentacion
+                     INNER JOIN BIOLOGICO b ON b.id_biologico = p.id_biologico
                      WHERE av.id_unidad = ?
                        AND av.fecha_aplicacion >= ?
                        AND av.fecha_aplicacion < ?
@@ -206,6 +208,7 @@ $aplicacionesMes = cargarFilas(
     $finMes
 );
 $reemplazosPorLote = [];
+$reemplazosPorFila = [];
 foreach ($aplicacionesMes as $aplicacion) {
     $clavePar = (int)$aplicacion["id_biologico_indicado"]
         . ":"
@@ -219,6 +222,13 @@ foreach ($aplicacionesMes as $aplicacion) {
     $nota = "Reemplazo de " . $filaPorParReemplazo[$clavePar]
         . " en fecha: " . $fecha;
     $reemplazosPorLote[$idLote][$nota] = $nota;
+
+    $filaReemplazo = $paresReemplazo[$clavePar];
+    $notaFila = "Fue reemplazada por: "
+        . $aplicacion["nombre_biologico_reemplazo"]
+        . " en fecha: "
+        . $fecha;
+    $reemplazosPorFila[$filaReemplazo][$notaFila] = $notaFila;
 }
 
 $sql = "SELECT p.id_biologico AS id_biologico_lote,
@@ -442,6 +452,7 @@ foreach ($catalogo as $grupo) {
     foreach ($grupo["filas"] as $definicion) $idsFamilia = array_merge($idsFamilia, $definicion["ids"]);
     $idsFamilia = array_values(array_unique(array_map("intval", $idsFamilia)));
     if (!$idsFamilia) continue;
+
     $listaIds = implode(",", $idsFamilia);
     foreach ($rangosEdad as $periodo => [$desde, $hasta]) {
         $sqlEdad = "SELECT
@@ -453,7 +464,14 @@ foreach ($catalogo as $grupo) {
                     INNER JOIN PRESENTACION pr ON pr.id_presentacion = l.id_presentacion
                     WHERE av.id_unidad = ? AND av.fecha_aplicacion >= ? AND av.fecha_aplicacion < ?
                       AND pr.id_biologico IN ($listaIds)";
-        $conteoEdad = cargarFilas($conexion, $sqlEdad, "iss", $idUnidad, $desde, $hasta)[0] ?? ["pediatrica"=>0, "adulto"=>0];
+        $conteoEdad = cargarFilas(
+            $conexion,
+            $sqlEdad,
+            "iss",
+            $idUnidad,
+            $desde,
+            $hasta
+        )[0] ?? ["pediatrica"=>0, "adulto"=>0];
         $destino = $periodo === "mes" ? "appsEdadMes" : "appsEdadAnio";
         ${$destino}[$grupo["familiaEdad"]] = $conteoEdad;
     }
@@ -472,7 +490,7 @@ function fmt($valor) { return number_format((float)$valor, 2, ".", ""); }
         .filtro-informe { margin: 16px 0; }
         .tabla-movimiento { overflow-x: auto; }
         .tabla-movimiento table { min-width: 1250px; border-collapse: collapse; }
-        .tabla-movimiento th, .tabla-movimiento td { border: 1px solid #333; padding: 6px; text-align: center; vertical-align: middle; }
+        .tabla-movimiento th, .tabla-movimiento td { border: 3px solid #333; padding: 10px; text-align: center; vertical-align: middle; }
         .tabla-movimiento th { background: #f1f1f1; }
         .tabla-movimiento thead tr:first-child th:first-child { background: #fff200; }
         .tabla-jeringas table { min-width: 950px; }
@@ -704,14 +722,50 @@ function fmt($valor) { return number_format((float)$valor, 2, ".", ""); }
                 }
                 $totalFilasGrupo = array_sum(array_column($filasGrupo, "cantidad_filas"));
                 $idsGrupo = [];
-                foreach ($grupo["filas"] as $definicion) $idsGrupo = array_merge($idsGrupo, $definicion["ids"]);
+                $presentacionesGrupo = [];
+                foreach ($grupo["filas"] as $definicion) {
+                    $idsGrupo = array_merge($idsGrupo, $definicion["ids"]);
+                    $presentacionesGrupo = array_merge(
+                        $presentacionesGrupo,
+                        $definicion["presentaciones"]
+                    );
+                }
                 $existenciaAnterior = 0;
                 foreach (array_unique($idsGrupo) as $idBioGrupo) $existenciaAnterior += (float)($aperturaPorBio[$idBioGrupo] ?? 0);
+                $entradasAnioGrupo = 0;
+                foreach (array_unique($presentacionesGrupo) as $idPresentacionGrupo) {
+                    $entradasAnioGrupo += (float)($entradasAnio[$idPresentacionGrupo] ?? 0);
+                }
+                $existenciaCorteGrupo = 0;
+                if (!empty($grupo["familiaEdad"])) {
+                    $lotesExistenciaContados = [];
+                    foreach ($filasGrupo as $filaFamilia) {
+                        foreach ($filaFamilia["detalles"] as $detalleFamilia) {
+                            $saldoFamilia = $detalleFamilia["saldo"] ?? null;
+                            if (!$saldoFamilia) continue;
+
+                            $idLoteFamilia = (int)$saldoFamilia["id_lote"];
+                            if (isset($lotesExistenciaContados[$idLoteFamilia])) continue;
+                            $lotesExistenciaContados[$idLoteFamilia] = true;
+
+                            $dosisPorFrascoFamilia = max(
+                                1,
+                                (float)$saldoFamilia["dosis_por_frasco"]
+                            );
+                            $existenciaCorteGrupo += (float)$saldoFamilia["recibidos"]
+                                - (
+                                    (float)$saldoFamilia["aplicaciones"]
+                                    + (float)$saldoFamilia["dosis_desechadas"]
+                                ) / $dosisPorFrascoFamilia;
+                        }
+                    }
+                }
                 $esPrimeraFilaGrupo = true;
-                foreach ($filasGrupo as $datosFila):
+                foreach ($filasGrupo as $indiceDatosFila => $datosFila):
                     $definicion = $datosFila["definicion"];
                     $idsFila = $definicion["ids"];
                     $cantidadFilasProducto = $datosFila["cantidad_filas"];
+                    $esPrimeraFilaFamilia = $indiceDatosFila === 0;
                     for ($i = 0; $i < $cantidadFilasProducto; $i++):
                         $detalle = $datosFila["detalles"][$i] ?? [];
                         $loteSaldo = $detalle["saldo"] ?? null;
@@ -742,13 +796,20 @@ function fmt($valor) { return number_format((float)$valor, 2, ".", ""); }
                     <td><?php echo $loteEntrada ? h($loteEntrada["numero_lote"]) : ""; ?></td>
                     <td><?php echo $loteEntrada ? h($loteEntrada["fecha_caducidad"]) : ""; ?></td>
                     <?php if ($i === 0): ?>
-                    <td rowspan="<?php echo $cantidadFilasProducto; ?>"><?php echo fmt($sumarPresentacion($entradasAnio)); ?></td>
+                    <?php if (!isset($definicion["familiaEdad"]) || $esPrimeraFilaFamilia): ?>
+                    <td rowspan="<?php echo isset($definicion["familiaEdad"]) ? $totalFilasGrupo : $cantidadFilasProducto; ?>"><?php echo fmt(isset($definicion["familiaEdad"]) ? $entradasAnioGrupo : $sumarPresentacion($entradasAnio)); ?></td>
+                    <?php endif; ?>
                     <td rowspan="<?php echo $cantidadFilasProducto; ?>"><?php echo fmt($aplicadasMesFila); ?></td>
                     <td rowspan="<?php echo $cantidadFilasProducto; ?>"><?php echo fmt($sumarPresentacion($desechoMes)); ?></td>
                     <td rowspan="<?php echo $cantidadFilasProducto; ?>"><?php echo fmt($aplicadasAnioFila); ?></td>
                     <td rowspan="<?php echo $cantidadFilasProducto; ?>"><?php echo fmt($sumarPresentacion($desechoAnio)); ?></td>
                     <?php endif; ?>
-                    <td class="<?php echo $stockLote < 0 ? "saldo-negativo" : ""; ?>"><?php echo $loteSaldo ? fmt($stockLote) : ""; ?></td>
+                    <?php if (!isset($definicion["familiaEdad"]) || ($esPrimeraFilaFamilia && $i === 0)): ?>
+                    <td
+                        class="<?php echo $existenciaCorteGrupo < 0 && !empty($grupo["familiaEdad"]) ? "saldo-negativo" : ($stockLote < 0 ? "saldo-negativo" : ""); ?>"
+                        rowspan="<?php echo isset($definicion["familiaEdad"]) ? $totalFilasGrupo : 1; ?>"
+                    ><?php echo fmt(isset($definicion["familiaEdad"]) ? $existenciaCorteGrupo : $stockLote); ?></td>
+                    <?php endif; ?>
                     <td><?php echo $loteSaldo ? h($loteSaldo["numero_lote"]) : ""; ?></td>
                     <td><?php echo $loteSaldo ? h($loteSaldo["fecha_caducidad"]) : ""; ?></td>
                     <?php if ($i === 0): ?>
@@ -762,6 +823,14 @@ function fmt($valor) { return number_format((float)$valor, 2, ".", ""); }
                     <td><?php
                         $observaciones = [];
                         $idLoteObservacion = (int)($loteSaldo["id_lote"] ?? $loteEntrada["id_lote"] ?? 0);
+
+                        if ($i === 0) {
+                            $claveFilaReemplazo = normalizarNombre($definicion[0]);
+                            foreach ($reemplazosPorFila[$claveFilaReemplazo] ?? [] as $notaReemplazo) {
+                                $observaciones[] = '<span class="movimiento movimiento-reemplazo">'
+                                    . h($notaReemplazo) . '</span>';
+                            }
+                        }
 
                         foreach ($reemplazosPorLote[$idLoteObservacion] ?? [] as $notaReemplazo) {
                             $observaciones[] = '<span class="movimiento movimiento-reemplazo">'
