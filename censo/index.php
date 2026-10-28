@@ -13,6 +13,22 @@ function e($valor)
     return htmlspecialchars((string)($valor ?? ""), ENT_QUOTES, "UTF-8");
 }
 
+function renderizarObservaciones($observaciones)
+{
+    $texto = e($observaciones);
+    $texto = preg_replace_callback(
+        '/\[reemplazo:\s*[^\]]*\]/iu',
+        function ($coincidencia) {
+            return '<strong class="observacion-reemplazo">'
+                . $coincidencia[0]
+                . '</strong>';
+        },
+        $texto
+    );
+
+    return nl2br($texto);
+}
+
 function fechaDMY($fecha)
 {
     if (empty($fecha)) {
@@ -850,7 +866,7 @@ foreach ($vacunasEsquema as $bio) {
                         <?php endforeach; ?>
 
                         <td rowspan="<?php echo $filasBloque; ?>" class="observaciones">
-                            <?php echo nl2br(e($observacionesPaciente[$idPaciente] ?? "")); ?>
+                            <?php echo renderizarObservaciones($observacionesPaciente[$idPaciente] ?? ""); ?>
                         </td>
 
                         <td rowspan="<?php echo $filasBloque; ?>">

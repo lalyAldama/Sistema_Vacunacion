@@ -226,6 +226,12 @@ body {
     white-space: normal;
 }
 
+.observacion-reemplazo {
+    color: #6A1B9A;
+    background: #F1E5F5;
+    font-weight: bold;
+}
+
 .sin-resultados,
 .sin-seleccion {
     background: #FFFFFF;

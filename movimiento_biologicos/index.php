@@ -157,20 +157,112 @@ foreach ($catalogo as &$grupo) {
 unset($grupo);
 
 
-$sql = "SELECT p.id_biologico, COUNT(*) AS total
+$idHexavalente = null;
+foreach (["HEXAVALENTE", "HEXAVALENTE DPTA HB VPI HIB", "HEXAVALENTE ACELULAR"] as $alias) {
+    $idHexavalente = $idsPorNombre[normalizarNombre($alias)] ?? $idHexavalente;
+}
+$idDpt = $idsPorNombre[normalizarNombre("DPT")] ?? null;
+$idTdpa = $idsPorNombre[normalizarNombre("TDPA")] ?? null;
+$idTd = $idsPorNombre[normalizarNombre("TD")] ?? null;
+
+$paresReemplazo = [];
+$filaPorParReemplazo = [];
+if ($idHexavalente !== null && $idDpt !== null) {
+    $clavePar = $idHexavalente . ":" . $idDpt;
+    $paresReemplazo[$clavePar] = normalizarNombre("HEXAVALENTE/DPT");
+    $filaPorParReemplazo[$clavePar] = "HEXAVALENTE";
+}
+if ($idTdpa !== null && $idTd !== null) {
+    $clavePar = $idTdpa . ":" . $idTd;
+    $paresReemplazo[$clavePar] = normalizarNombre("TDPA/TD");
+    $filaPorParReemplazo[$clavePar] = "TDPA";
+}
+if ($idTdpa !== null && $idDpt !== null) {
+    $clavePar = $idTdpa . ":" . $idDpt;
+    $paresReemplazo[$clavePar] = normalizarNombre("TDPA/DPT");
+    $filaPorParReemplazo[$clavePar] = "TDPA";
+}
+
+$sqlReemplazosMes = "SELECT av.id_lote, av.fecha_aplicacion,
+                            eb.id_biologico AS id_biologico_indicado,
+                            p.id_biologico AS id_biologico_lote
+                     FROM APLICACION_VACUNA av
+                     INNER JOIN ESQUEMA_BIOLOGICO_DOSIS ebd
+                         ON ebd.id_esquema_biologico_dosis = av.id_esquema_biologico_dosis
+                     INNER JOIN ESQUEMA_BIOLOGICO eb
+                         ON eb.id_esquema_biologico = ebd.id_esquema_biologico
+                     INNER JOIN LOTE l ON l.id_lote = av.id_lote
+                     INNER JOIN PRESENTACION p ON p.id_presentacion = l.id_presentacion
+                     WHERE av.id_unidad = ?
+                       AND av.fecha_aplicacion >= ?
+                       AND av.fecha_aplicacion < ?
+                     ORDER BY av.fecha_aplicacion, av.id_aplicacion_vacuna";
+$aplicacionesMes = cargarFilas(
+    $conexion,
+    $sqlReemplazosMes,
+    "iss",
+    $idUnidad,
+    $inicioMes,
+    $finMes
+);
+$reemplazosPorLote = [];
+foreach ($aplicacionesMes as $aplicacion) {
+    $clavePar = (int)$aplicacion["id_biologico_indicado"]
+        . ":"
+        . (int)$aplicacion["id_biologico_lote"];
+    if (!isset($filaPorParReemplazo[$clavePar])) {
+        continue;
+    }
+
+    $idLote = (int)$aplicacion["id_lote"];
+    $fecha = date("d/m/Y", strtotime($aplicacion["fecha_aplicacion"]));
+    $nota = "Reemplazo de " . $filaPorParReemplazo[$clavePar]
+        . " en fecha: " . $fecha;
+    $reemplazosPorLote[$idLote][$nota] = $nota;
+}
+
+$sql = "SELECT p.id_biologico AS id_biologico_lote,
+               eb.id_biologico AS id_biologico_indicado,
+               COUNT(*) AS total
         FROM APLICACION_VACUNA av
         INNER JOIN LOTE l ON l.id_lote = av.id_lote
         INNER JOIN PRESENTACION p ON p.id_presentacion = l.id_presentacion
+        INNER JOIN ESQUEMA_BIOLOGICO_DOSIS ebd
+            ON ebd.id_esquema_biologico_dosis = av.id_esquema_biologico_dosis
+        INNER JOIN ESQUEMA_BIOLOGICO eb
+            ON eb.id_esquema_biologico = ebd.id_esquema_biologico
         WHERE av.id_unidad = ? AND av.fecha_aplicacion >= ? AND av.fecha_aplicacion < ?
-        GROUP BY p.id_biologico";
+        GROUP BY p.id_biologico, eb.id_biologico";
 $aplicadasMes = cargarFilas($conexion, $sql, "iss", $idUnidad, $inicioMes, $finMes);
-$sql = "SELECT p.id_biologico, COUNT(*) AS total
-        FROM APLICACION_VACUNA av
-        INNER JOIN LOTE l ON l.id_lote = av.id_lote
-        INNER JOIN PRESENTACION p ON p.id_presentacion = l.id_presentacion
-        WHERE av.id_unidad = ? AND av.fecha_aplicacion >= ? AND av.fecha_aplicacion < ?
-        GROUP BY p.id_biologico";
 $aplicadasAnio = cargarFilas($conexion, $sql, "iss", $idUnidad, $inicioAnio, $finMes);
+
+function separarAplicacionesPorBiologicoYReemplazo($filas, $paresReemplazo)
+{
+    $porBiologico = [];
+    $porReemplazo = [];
+
+    foreach ($filas as $fila) {
+        $idBiologicoLote = (int)$fila["id_biologico_lote"];
+        $idBiologicoIndicado = (int)$fila["id_biologico_indicado"];
+        $clavePar = $idBiologicoIndicado . ":" . $idBiologicoLote;
+        $total = (int)$fila["total"];
+
+        if (isset($paresReemplazo[$clavePar])) {
+            $claveFila = $paresReemplazo[$clavePar];
+            $porReemplazo[$claveFila] = ($porReemplazo[$claveFila] ?? 0) + $total;
+        } else {
+            $porBiologico[$idBiologicoLote] =
+                ($porBiologico[$idBiologicoLote] ?? 0) + $total;
+        }
+    }
+
+    return [$porBiologico, $porReemplazo];
+}
+
+[$appsMes, $appsReemplazoMes] =
+    separarAplicacionesPorBiologicoYReemplazo($aplicadasMes, $paresReemplazo);
+[$appsAnio, $appsReemplazoAnio] =
+    separarAplicacionesPorBiologicoYReemplazo($aplicadasAnio, $paresReemplazo);
 
 $sqlDesecho = "SELECT p.id_presentacion,
                       SUM(CASE WHEN mb.fecha_movimiento >= ? AND mb.fecha_movimiento < ? THEN mb.cantidad_dosis ELSE 0 END) AS mes,
@@ -330,8 +422,6 @@ function mapaPorBiologico($filas, $campo = "total", $idCampo = "id_biologico") {
     foreach ($filas as $fila) $mapa[(int)$fila[$idCampo]] = $fila[$campo];
     return $mapa;
 }
-$appsMes = mapaPorBiologico($aplicadasMes);
-$appsAnio = mapaPorBiologico($aplicadasAnio);
 $desechoMes = mapaPorBiologico($desechos, "mes", "id_presentacion");
 $desechoAnio = mapaPorBiologico($desechos, "anio", "id_presentacion");
 $entradasMes = mapaPorBiologico($entradas, "mes", "id_presentacion");
@@ -418,6 +508,10 @@ function fmt($valor) { return number_format((float)$valor, 2, ".", ""); }
         .movimiento-donacion {
             color: #665000;
             background: #fff176;
+        }
+        .movimiento-reemplazo {
+            color: #6a1b9a;
+            background: #f1e5f5;
         }
         .movimiento .detalle-enlace {
             color: inherit;
@@ -630,10 +724,12 @@ function fmt($valor) { return number_format((float)$valor, 2, ".", ""); }
                         $sumarPresentacion = function($mapa) use ($definicion) { $total = 0; foreach ($definicion["presentaciones"] as $id) $total += (float)($mapa[$id] ?? 0); return $total; };
                         $aplicadasMesFila = isset($definicion["familiaEdad"])
                             ? (float)($appsEdadMes[$definicion["familiaEdad"]][$definicion["edadReporte"]] ?? 0)
-                            : $sumarBio($appsMes);
+                            : $sumarBio($appsMes)
+                                + (float)($appsReemplazoMes[normalizarNombre($definicion[0])] ?? 0);
                         $aplicadasAnioFila = isset($definicion["familiaEdad"])
                             ? (float)($appsEdadAnio[$definicion["familiaEdad"]][$definicion["edadReporte"]] ?? 0)
-                            : $sumarBio($appsAnio);
+                            : $sumarBio($appsAnio)
+                                + (float)($appsReemplazoAnio[normalizarNombre($definicion[0])] ?? 0);
             ?>
                 <tr>
                     <?php if ($esPrimeraFilaGrupo): ?>
@@ -665,6 +761,12 @@ function fmt($valor) { return number_format((float)$valor, 2, ".", ""); }
                     <?php endif; ?>
                     <td><?php
                         $observaciones = [];
+                        $idLoteObservacion = (int)($loteSaldo["id_lote"] ?? $loteEntrada["id_lote"] ?? 0);
+
+                        foreach ($reemplazosPorLote[$idLoteObservacion] ?? [] as $notaReemplazo) {
+                            $observaciones[] = '<span class="movimiento movimiento-reemplazo">'
+                                . h($notaReemplazo) . '</span>';
+                        }
 
                         if (!empty($loteEntrada["observaciones"])) {
                             $observaciones[] = '<span class="movimiento movimiento-entrada">Entrada: '

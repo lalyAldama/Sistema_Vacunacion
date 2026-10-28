@@ -1,6 +1,11 @@
 const vacuna = document.getElementById("vacuna");
 const dosis = document.getElementById("dosis");
 const lote = document.getElementById("lote");
+const etiquetaLote = document.getElementById("etiqueta-lote");
+const reemplazo = document.getElementById("reemplazo");
+const datosReemplazo = document.getElementById("datos-reemplazo");
+const biologicoReemplazo = document.getElementById("biologico-reemplazo");
+const motivoReemplazo = document.getElementById("motivo-reemplazo");
 
 function cargarLotes(idBiologico) {
     lote.innerHTML = "";
@@ -64,6 +69,74 @@ function cargarLotes(idBiologico) {
     }
 }
 
+function idBiologicoDelLote() {
+    return reemplazo.value === "1"
+        ? biologicoReemplazo.value
+        : vacuna.value;
+}
+
+function actualizarLotes() {
+    cargarLotes(idBiologicoDelLote());
+}
+
+function cargarBiologicosReemplazo() {
+    biologicoReemplazo.innerHTML = "";
+
+    const opcionInicial = document.createElement("option");
+    opcionInicial.value = "";
+    biologicoReemplazo.appendChild(opcionInicial);
+
+    if (vacuna.value === "") {
+        opcionInicial.textContent = "PRIMERO SELECCIONE LA VACUNA DEL ESQUEMA";
+        biologicoReemplazo.disabled = true;
+        return;
+    }
+
+    const idsReemplazo = reemplazosPorBiologico[String(vacuna.value)] || [];
+    if (idsReemplazo.length === 0) {
+        opcionInicial.textContent =
+            "NO HAY UN BIOLÓGICO DE REEMPLAZO CONFIGURADO PARA ESTA VACUNA";
+        biologicoReemplazo.disabled = true;
+        return;
+    }
+
+    opcionInicial.textContent = "SELECCIONE EL BIOLÓGICO DE REEMPLAZO";
+    biologicoReemplazo.disabled = false;
+
+    idsReemplazo.forEach(function(idBiologico) {
+        const item = biologicosReemplazo.find(function(biologico) {
+            return String(biologico.id_biologico) === String(idBiologico);
+        });
+        if (!item) {
+            return;
+        }
+
+        const opcion = document.createElement("option");
+        opcion.value = item.id_biologico;
+        opcion.textContent = item.nombre_biologico;
+        biologicoReemplazo.appendChild(opcion);
+    });
+}
+
+function actualizarModoReemplazo() {
+    const estaReemplazando = reemplazo.value === "1";
+    datosReemplazo.hidden = !estaReemplazando;
+    etiquetaLote.textContent = estaReemplazando
+        ? "LOTE DEL BIOLÓGICO DE REEMPLAZO:"
+        : "LOTE DE LA VACUNA DEL ESQUEMA:";
+    biologicoReemplazo.required = estaReemplazando;
+    motivoReemplazo.required = estaReemplazando;
+    biologicoReemplazo.disabled = !estaReemplazando;
+    motivoReemplazo.disabled = !estaReemplazando;
+
+    if (estaReemplazando) {
+        cargarBiologicosReemplazo();
+    } else {
+        biologicoReemplazo.value = "";
+    }
+    actualizarLotes();
+}
+
 vacuna.addEventListener("change", function() {
     const idBiologico = this.value;
     dosis.innerHTML = "";
@@ -75,7 +148,8 @@ vacuna.addEventListener("change", function() {
                 PRIMERO SELECCIONE UNA VACUNA
             </option>
         `;
-        cargarLotes("");
+        cargarBiologicosReemplazo();
+        actualizarLotes();
         return;
     }
 
@@ -94,5 +168,11 @@ vacuna.addEventListener("change", function() {
         }
     });
 
-    cargarLotes(idBiologico);
+    if (reemplazo.value === "1") {
+        cargarBiologicosReemplazo();
+    }
+    actualizarLotes();
 });
+
+reemplazo.addEventListener("change", actualizarModoReemplazo);
+biologicoReemplazo.addEventListener("change", actualizarLotes);

@@ -40,6 +40,42 @@ function categoriaPresentacion($nombre)
     return "";
 }
 
+function normalizarNombreBiologico($nombre)
+{
+    $nombre = mb_strtoupper(trim((string)$nombre), "UTF-8");
+    $nombre = strtr($nombre, [
+        "Á" => "A",
+        "É" => "E",
+        "Í" => "I",
+        "Ó" => "O",
+        "Ú" => "U",
+        "Ü" => "U",
+        "Ñ" => "N"
+    ]);
+
+    return preg_replace('/[^A-Z0-9]+/', '', $nombre);
+}
+
+function buscarIdBiologicoPorAlias($biologicos, $aliases)
+{
+    $aliasesNormalizados = array_map("normalizarNombreBiologico", $aliases);
+    $idsEncontrados = [];
+
+    foreach ($biologicos as $biologico) {
+        if (in_array(
+            normalizarNombreBiologico($biologico["nombre_biologico"]),
+            $aliasesNormalizados,
+            true
+        )) {
+            $idsEncontrados[(int)$biologico["id_biologico"]] = true;
+        }
+    }
+
+    return count($idsEncontrados) === 1
+        ? (int)array_key_first($idsEncontrados)
+        : null;
+}
+
 function edadActualEnDias($fechaNacimiento)
 {
     try {
@@ -232,6 +268,27 @@ if(!$resultadoBiologicos) {
     die("Error al consultar biológicos: " . $conexion->error);
 }
 
+$biologicosArray = $resultadoBiologicos->fetch_all(MYSQLI_ASSOC);
+$idHexavalente = buscarIdBiologicoPorAlias($biologicosArray, [
+    "HEXAVALENTE",
+    "HEXAVALENTE DPTA HB VPI HIB",
+    "HEXAVALENTE ACELULAR"
+]);
+$idDpt = buscarIdBiologicoPorAlias($biologicosArray, ["DPT"]);
+$idTdpa = buscarIdBiologicoPorAlias($biologicosArray, ["TDPA"]);
+$idTd = buscarIdBiologicoPorAlias($biologicosArray, ["TD"]);
+
+$reemplazosPorBiologico = [];
+if ($idHexavalente !== null && $idDpt !== null) {
+    $reemplazosPorBiologico[(string)$idHexavalente][] = $idDpt;
+}
+if ($idTdpa !== null && $idTd !== null) {
+    $reemplazosPorBiologico[(string)$idTdpa][] = $idTd;
+}
+if ($idTdpa !== null && $idDpt !== null) {
+    $reemplazosPorBiologico[(string)$idTdpa][] = $idDpt;
+}
+
 
 // =========================================================
 // OBTENER UNIDAD DEL USUARIO
@@ -277,7 +334,18 @@ if($_SERVER["REQUEST_METHOD"] == "POST") {
     $fecha_aplicacion = $_POST["fecha_aplicacion"] ?? "";
     $dosis_cero = $_POST["dosis_cero"] ?? "";
     $id_biologico_indicado = $_POST["id_biologico_indicado"] ?? "";
-    $observaciones = $_POST["observaciones"] ?? "";
+    $observaciones = is_string($_POST["observaciones"] ?? null)
+        ? $_POST["observaciones"]
+        : "";
+    $reemplazo = is_string($_POST["reemplazo"] ?? null)
+        ? $_POST["reemplazo"]
+        : "";
+    $id_biologico_reemplazo = is_string($_POST["id_biologico_reemplazo"] ?? null)
+        ? $_POST["id_biologico_reemplazo"]
+        : "";
+    $motivo_reemplazo = is_string($_POST["motivo_reemplazo"] ?? null)
+        ? trim($_POST["motivo_reemplazo"])
+        : "";
 
 
     // =====================================================
@@ -287,13 +355,42 @@ if($_SERVER["REQUEST_METHOD"] == "POST") {
     if(
         empty($id_biologico) ||
         empty($id_esquema_biologico_dosis) ||
-        empty($id_lote) ||
         empty($fecha_aplicacion) ||
-        $dosis_cero === ""
+        $dosis_cero === "" ||
+        !in_array($reemplazo, ["0", "1"], true)
     ) {
         die("Faltan datos obligatorios para registrar la aplicación.");
     }
 
+    $idBiologicoLote = (int)$id_biologico;
+    if ($reemplazo === "1") {
+        $reemplazosPermitidos = $reemplazosPorBiologico[(string)$id_biologico] ?? [];
+        if (
+            $id_biologico_reemplazo === "" ||
+            !in_array((int)$id_biologico_reemplazo, $reemplazosPermitidos, true) ||
+            $motivo_reemplazo === ""
+        ) {
+            die("Seleccione un biológico de reemplazo permitido e indique el motivo.");
+        }
+        if (mb_strlen($motivo_reemplazo, "UTF-8") > 250) {
+            die("El motivo del reemplazo no debe superar 250 caracteres.");
+        }
+
+        $idBiologicoLote = (int)$id_biologico_reemplazo;
+        $observaciones = trim($observaciones);
+        $observaciones = ($observaciones === "" ? "" : $observaciones . "\n")
+            . "[reemplazo: " . $motivo_reemplazo . "]";
+    } elseif (trim($observaciones) !== "") {
+        $observaciones = trim($observaciones);
+    }
+
+    if (mb_strlen($observaciones, "UTF-8") > 500) {
+        die("Las observaciones, incluido el motivo del reemplazo, no deben superar 500 caracteres.");
+    }
+
+    if (empty($id_lote)) {
+        die("Seleccione un lote del biológico que se aplicó.");
+    }
 
     // =====================================================
     // BIOLOGICO INDICADO
@@ -363,7 +460,7 @@ if($_SERVER["REQUEST_METHOD"] == "POST") {
     $stmtValidarLote->bind_param(
         "ii",
         $id_lote,
-        $id_biologico
+        $idBiologicoLote
     );
 
     $stmtValidarLote->execute();
@@ -371,13 +468,13 @@ if($_SERVER["REQUEST_METHOD"] == "POST") {
     $resultadoValidarLote = $stmtValidarLote->get_result();
 
     if($resultadoValidarLote->num_rows === 0) {
-        die("El lote seleccionado no corresponde a la vacuna seleccionada.");
+        die("El lote seleccionado no corresponde al biológico elegido para la aplicación.");
     }
 
     $loteValidado = $resultadoValidarLote->fetch_assoc();
     $stmtValidarLote->close();
 
-    $categoriasPresentacion = $presentacionesPorBiologico[(string)$id_biologico] ?? [];
+    $categoriasPresentacion = $presentacionesPorBiologico[(string)$idBiologicoLote] ?? [];
     if (isset($categoriasPresentacion["pediatrica"], $categoriasPresentacion["adulta"])) {
         $edadDias = edadActualEnDias($paciente["fecha_nacimiento"]);
         if ($edadDias === null) {
@@ -632,7 +729,7 @@ if($_SERVER["REQUEST_METHOD"] == "POST") {
 
     <label>
 
-        <strong>LOTE:</strong>
+        <strong id="etiqueta-lote">LOTE DE LA VACUNA DEL ESQUEMA:</strong>
 
     </label>
 
@@ -729,48 +826,43 @@ if($_SERVER["REQUEST_METHOD"] == "POST") {
     <br>
     <br>
 
-
     <!-- =================================================
-         BIOLOGICO INDICADO
+         REEMPLAZO DE BIOLÓGICO
     ================================================== -->
 
-    <label>
-
-        <strong>BIOLOGICO INDICADO:</strong>
-
+    <label for="reemplazo">
+        <strong>¿HABRÁ REEMPLAZO DE BIOLÓGICO?</strong>
     </label>
 
-    <br>
-
-
-    <select name="id_biologico_indicado">
-
-        <option value="">
-
-            NO APLICA
-
-        </option>
-
-
-        <?php while($biologico = $resultadoBiologicos->fetch_assoc()): ?>
-
-            <option
-                value="<?php echo $biologico["id_biologico"]; ?>"
-            >
-
-                <?php
-
-                echo htmlspecialchars(
-                    $biologico["nombre_biologico"]
-                );
-
-                ?>
-
-            </option>
-
-        <?php endwhile; ?>
-
+    <select name="reemplazo" id="reemplazo" required>
+        <option value="">SELECCIONE</option>
+        <option value="0">NO</option>
+        <option value="1">SÍ</option>
     </select>
+
+    <div id="datos-reemplazo" hidden>
+        <label for="biologico-reemplazo">
+            <strong>BIOLÓGICO DE REEMPLAZO:</strong>
+        </label>
+        <select
+            name="id_biologico_reemplazo"
+            id="biologico-reemplazo"
+            disabled
+        >
+            <option value="">PRIMERO SELECCIONE LA VACUNA DEL ESQUEMA</option>
+        </select>
+
+        <label for="motivo-reemplazo">
+            <strong>MOTIVO DEL REEMPLAZO:</strong>
+        </label>
+        <textarea
+            name="motivo_reemplazo"
+            id="motivo-reemplazo"
+            rows="3"
+            maxlength="250"
+            disabled
+        ></textarea>
+    </div>
 
 
     <br>
@@ -847,6 +939,14 @@ if($_SERVER["REQUEST_METHOD"] == "POST") {
 
     const datosLotes = <?php
         echo json_encode($lotesArray, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
+    ?>;
+
+    const biologicosReemplazo = <?php
+        echo json_encode($biologicosArray, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
+    ?>;
+
+    const reemplazosPorBiologico = <?php
+        echo json_encode($reemplazosPorBiologico, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
     ?>;
 
     const presentacionesPorBiologico = <?php
