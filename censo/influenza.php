@@ -11,6 +11,49 @@ if (!isset($_SESSION['id_usuario'])) {
     exit;
 }
 
+require_once __DIR__ . '/../config/conexion.php';
+
+if (!isset($conexion) || !($conexion instanceof mysqli)) {
+    http_response_code(500);
+    exit('No se encontró la conexión mysqli $conexion en ../config/conexion.php.');
+}
+$conexion->set_charset('utf8mb4');
+require_once __DIR__ . '/historial.php';
+censoHistorialAsegurarTabla($conexion);
+
+if (array_key_exists('historico_fecha', $_GET)) {
+    censoHistorialMostrar(
+        $conexion,
+        'influenza',
+        0,
+        'CENSO NOMINAL DE INFLUENZA',
+        'influenza.php',
+        is_string($_GET['historico_fecha']) ? $_GET['historico_fecha'] : ''
+    );
+    exit;
+}
+
+$busqueda = isset($_GET['buscar']) && is_string($_GET['buscar'])
+    ? trim($_GET['buscar'])
+    : '';
+$capturaHistorialActiva = $busqueda === '';
+$tokenHistorial = $capturaHistorialActiva
+    ? hash_hmac(
+        'sha256',
+        'censo_historial|influenza|0',
+        $_SESSION['form_guard_secret']
+    )
+    : '';
+$inicioFormularioHistorial = $capturaHistorialActiva ? time() - 3 : 0;
+$nonceFormularioHistorial = $capturaHistorialActiva ? bin2hex(random_bytes(16)) : '';
+$pruebaFormularioHistorial = $capturaHistorialActiva
+    ? hash_hmac(
+        'sha256',
+        $inicioFormularioHistorial . '|' . $nonceFormularioHistorial,
+        $_SESSION['form_guard_secret']
+    )
+    : '';
+
 $mesActual = (int)date('n');
 $temporadaActiva = ($mesActual >= 10 || $mesActual <= 3);
 if (!$temporadaActiva) {
@@ -23,7 +66,14 @@ if (!$temporadaActiva) {
         <title>Censo de influenza fuera de temporada</title>
         <link rel="stylesheet" href="css/censo.css">
     </head>
-    <body>
+    <body<?php if ($capturaHistorialActiva): ?>
+        data-historial-tipo="influenza"
+        data-historial-censo="0"
+        data-historial-token="<?= htmlspecialchars($tokenHistorial, ENT_QUOTES, 'UTF-8') ?>"
+        data-historial-form-inicio="<?= htmlspecialchars((string)$inicioFormularioHistorial, ENT_QUOTES, 'UTF-8') ?>"
+        data-historial-form-nonce="<?= htmlspecialchars($nonceFormularioHistorial, ENT_QUOTES, 'UTF-8') ?>"
+        data-historial-form-prueba="<?= htmlspecialchars($pruebaFormularioHistorial, ENT_QUOTES, 'UTF-8') ?>"
+    <?php endif; ?>>
         <main class="pagina">
             <div class="barra-superior">
                 <h1>CENSO NOMINAL DE INFLUENZA</h1>
@@ -31,21 +81,24 @@ if (!$temporadaActiva) {
             <div class="panel-resultados sin-seleccion" role="status">
                 No estamos en temporada invernal. El censo de influenza está disponible de octubre a marzo.
             </div>
+            <section class="panel-filtros consulta-historica">
+                <form method="get" action="influenza.php" class="buscador">
+                    <label for="fecha-historica">Consultar el censo en una fecha:</label>
+                    <input id="fecha-historica" type="date" name="historico_fecha" max="<?= date('Y-m-d') ?>" required>
+                    <button class="btn btn-azul" type="submit">CONSULTAR HISTORIAL</button>
+                </form>
+                <p>Las copias se guardan automáticamente desde que se consulta este censo y se conservan durante cinco años.</p>
+            </section>
             <a class="btn btn-censo" href="index.php">VOLVER AL CENSO</a>
         </main>
+        <?php if ($capturaHistorialActiva): ?>
+            <script src="js/historial.js"></script>
+        <?php endif; ?>
     </body>
     </html>
     <?php
     exit;
 }
-
-require_once __DIR__ . '/../config/conexion.php';
-
-if (!isset($conexion) || !($conexion instanceof mysqli)) {
-    http_response_code(500);
-    exit('No se encontró la conexión mysqli $conexion en ../config/conexion.php.');
-}
-$conexion->set_charset('utf8mb4');
 
 function h($valor): string {
     return htmlspecialchars((string)($valor ?? ''), ENT_QUOTES, 'UTF-8');
@@ -159,7 +212,6 @@ function obtenerAplicaciones(mysqli $conexion, string $idPaciente): array {
     return $lista;
 }
 
-$busqueda = trim($_GET['buscar'] ?? '');
 if ($busqueda !== '') {
     $pacientes = array_values(array_filter($pacientes, function ($p) use ($busqueda) {
         $nombre = trim(($p['ap_pat'] ?? '') . ' ' . ($p['ap_mat'] ?? '') . ' ' . ($p['nombres'] ?? ''));
@@ -214,7 +266,15 @@ if ($busqueda !== '') {
 @media print{body{background:#fff;padding:0}.barra-superior,.panel-filtros,.aviso-influenza,.pie-influenza{display:none!important}.encabezado-influenza{break-inside:avoid}.tabla-scroll{overflow:visible}.censo-influenza{font-size:8px}}
 </style>
 </head>
-<body>
+<body<?php if ($capturaHistorialActiva): ?>
+    data-historial-tipo="influenza"
+    data-historial-censo="0"
+    data-historial-token="<?= h($tokenHistorial) ?>"
+    data-historial-form-inicio="<?= h($inicioFormularioHistorial) ?>"
+    data-historial-form-nonce="<?= h($nonceFormularioHistorial) ?>"
+    data-historial-form-prueba="<?= h($pruebaFormularioHistorial) ?>"
+    data-capturar-influenza="0"
+<?php endif; ?>>
 <div class="pagina">
     <div class="barra-superior">
         <div>
@@ -235,6 +295,14 @@ if ($busqueda !== '') {
             <button class="btn btn-azul" type="submit">BUSCAR</button>
         </form>
     </div>
+    <section class="panel-filtros consulta-historica">
+        <form method="get" action="influenza.php" class="buscador">
+            <label for="fecha-historica">Consultar cómo estaba este censo en una fecha:</label>
+            <input id="fecha-historica" type="date" name="historico_fecha" max="<?= date('Y-m-d') ?>" required>
+            <button type="submit" class="btn btn-azul">CONSULTAR HISTORIAL</button>
+        </form>
+        <p>Las copias se guardan automáticamente desde que se consulta este censo y se conservan durante cinco años.</p>
+    </section>
 
     <section class="encabezado-influenza encabezado-editable" id="encabezadoEditable">
         <div class="cabecera-superior-influenza">
@@ -428,5 +496,8 @@ document.querySelectorAll("#encabezadoEditable [data-edit-key]").forEach(functio
     });
 });
 </script>
+<?php if ($capturaHistorialActiva): ?>
+    <script src="js/historial.js"></script>
+<?php endif; ?>
 </body>
 </html>

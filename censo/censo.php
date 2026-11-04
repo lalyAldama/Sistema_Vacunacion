@@ -333,7 +333,7 @@ try {
 
     echo "<script>
         alert('Paciente registrado correctamente');
-        window.location.href = 'index.php';
+        window.location.href = 'index.php?censo=" . (int)$id_censo . "&capturar_historial=1';
     </script>";
 
 

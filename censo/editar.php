@@ -11,6 +11,29 @@ require_once "../config/conexion.php";
 
 if($_SERVER["REQUEST_METHOD"] === "POST") {
     $id_paciente = $_GET["id"];
+    $stmtCenso = $conexion->prepare(
+        "SELECT pc.id_censo, p.fecha_nacimiento
+         FROM PACIENTE_CENSO pc
+         INNER JOIN PACIENTE p ON p.id_paciente = pc.id_paciente
+         WHERE pc.id_paciente = ?
+         LIMIT 1"
+    );
+    if (!$stmtCenso) {
+        die("Error al consultar el censo del paciente: " . $conexion->error);
+    }
+    $stmtCenso->bind_param("s", $id_paciente);
+    if (!$stmtCenso->execute()) {
+        die("Error al consultar el censo del paciente: " . $stmtCenso->error);
+    }
+    $resultadoCenso = $stmtCenso->get_result();
+    $datosCenso = $resultadoCenso->fetch_assoc();
+    $stmtCenso->close();
+    if (!$datosCenso) {
+        die("El paciente no está asignado a un censo.");
+    }
+    $idCensoPaciente = (int)$datosCenso["id_censo"];
+    $fechaNacimientoPaciente = $datosCenso["fecha_nacimiento"];
+
     $ap_pat = strtoupper(trim($_POST["ap_pat"]));
     $ap_mat = strtoupper(trim($_POST["ap_mat"]));
     $nombres = strtoupper(trim($_POST["nombres"]));
@@ -43,9 +66,25 @@ if($_SERVER["REQUEST_METHOD"] === "POST") {
         : 0;
 
     $fecha_ultima_menstruacion = 
-        !empty($_POST["fecha_ultima_menstruacion"])
+        $embarazo === 1 && !empty($_POST["fecha_ultima_menstruacion"])
         ? $_POST["fecha_ultima_menstruacion"]
         : null;
+
+    try {
+        $nacimiento = new DateTimeImmutable($fechaNacimientoPaciente);
+        $edadPaciente = $nacimiento->diff(new DateTimeImmutable("today"))->y;
+    } catch (Throwable $e) {
+        http_response_code(500);
+        exit("No se pudo determinar la edad del paciente para actualizar su censo.");
+    }
+
+    if ($embarazo === 1 || $edadPaciente >= 20) {
+        $nuevoIdCenso = 3;
+    } elseif ($edadPaciente >= 10) {
+        $nuevoIdCenso = 2;
+    } else {
+        $nuevoIdCenso = 1;
+    }
     $sqlTutorActual = "SELECT id_tutor FROM PACIENTE 
                         WHERE id_paciente = ?";
     $stmtTutorActual = $conexion->prepare($sqlTutorActual);
@@ -143,9 +182,21 @@ if($_SERVER["REQUEST_METHOD"] === "POST") {
     $stmtActualizar->execute();
     $stmtActualizar->close();
 
+    $stmtActualizarCenso = $conexion->prepare(
+        "UPDATE PACIENTE_CENSO SET id_censo = ? WHERE id_paciente = ?"
+    );
+    if (!$stmtActualizarCenso) {
+        die("Error al preparar la actualización del censo: " . $conexion->error);
+    }
+    $stmtActualizarCenso->bind_param("is", $nuevoIdCenso, $id_paciente);
+    if (!$stmtActualizarCenso->execute()) {
+        die("Error al actualizar el censo del paciente: " . $stmtActualizarCenso->error);
+    }
+    $stmtActualizarCenso->close();
+
     echo "<script>
         alert('PACIENTE ACTUALIZADO CORRECTAMENTE');
-        window.location.href = 'index.php';
+        window.location.href = 'index.php?censo=" . $nuevoIdCenso . "&capturar_historial=1&capturar_censo_anterior=" . $idCensoPaciente . "';
         </script>";
     exit;
 
@@ -162,6 +213,7 @@ function mostrar($valor) {
 }
 
 $sql = "SELECT p.*, 
+               pc.id_censo,
                t.id_tutor AS tutor_id,
                t.ap_pat AS tutor_ap_pat,
                t.ap_mat AS tutor_ap_mat,
@@ -174,6 +226,7 @@ $sql = "SELECT p.*,
                t.sexo AS tutor_sexo,
                t.curp AS tutor_curp
         FROM PACIENTE p
+        INNER JOIN PACIENTE_CENSO pc ON pc.id_paciente = p.id_paciente
         LEFT JOIN TUTOR t ON p.id_tutor = t.id_tutor
         WHERE p.id_paciente = ?";
 
@@ -237,7 +290,16 @@ $esMigrante = (
 
 <h1>EDITAR PACIENTE</h1>
 
-<form method="POST" action="editar.php?id=<?php echo urlencode($id_paciente); ?>">
+<form
+    method="POST"
+    action="editar.php?id=<?php echo urlencode($id_paciente); ?>"
+    data-censo-anterior="<?php echo (int)$paciente["id_censo"]; ?>"
+    data-capturar-antes="<?php echo hash_hmac(
+        "sha256",
+        "censo_historial|general|" . (int)$paciente["id_censo"],
+        $_SESSION["form_guard_secret"]
+    ); ?>"
+>
 
     <h2>DATOS DEL PACIENTE</h2>
 
@@ -352,12 +414,13 @@ $esMigrante = (
     <br><br>
 
     <div id="campo_embarazo" style="display:none;">
-        <label>¿ESTÁ EMBARAZADA?</label><br>
+        <label>¿ESTÁ EMBARAZADA ACTUALMENTE?</label><br>
         <select name="embarazo" id="embarazo">
             <option value="">SELECCIONE...</option>
             <option value="1" <?php echo (string)$paciente["embarazo"] === "1" ? "selected" : ""; ?>>SÍ</option>
             <option value="0" <?php echo (string)$paciente["embarazo"] === "0" ? "selected" : ""; ?>>NO</option>
         </select>
+        <p>Si ya dio a luz, seleccione NO. Se quitará la fecha de última menstruación y el censo se actualizará según su edad.</p>
         <br><br>
 
         <div id="campo_fum" style="display:none;">
@@ -454,5 +517,51 @@ $esMigrante = (
 </form>
 
 <script src="js/censo.js"></script>
+<script>
+document.querySelector("form[data-censo-anterior]").addEventListener("submit", function (evento) {
+    var formulario = evento.currentTarget;
+    if (formulario.dataset.enviandoDespuesDeCaptura === "1") return;
+
+    evento.preventDefault();
+    var marco = document.createElement("iframe");
+    marco.hidden = true;
+    var censoAnterior = formulario.getAttribute("data-censo-anterior");
+    var finalizado = false;
+    var temporizador = window.setTimeout(function () {
+        finalizar(new Error("No se pudo guardar una copia del censo antes del cambio. No se modificaron los datos."));
+    }, 30000);
+
+    function finalizar(error) {
+        if (finalizado) return;
+        finalizado = true;
+        window.clearTimeout(temporizador);
+        window.removeEventListener("message", recibirCopia);
+        marco.remove();
+        if (error) {
+            alert(error.message);
+            return;
+        }
+
+        formulario.dataset.enviandoDespuesDeCaptura = "1";
+        formulario.submit();
+    }
+
+    function recibirCopia(mensaje) {
+        if (
+            mensaje.origin !== window.location.origin
+            || mensaje.source !== marco.contentWindow
+            || !mensaje.data
+            || mensaje.data.type !== "censo-historial-guardado"
+        ) return;
+        finalizar();
+    }
+
+    window.addEventListener("message", recibirCopia);
+    marco.src = "index.php?censo=" + encodeURIComponent(censoAnterior)
+        + "&capturar_previo=1&token_previo="
+        + encodeURIComponent(formulario.getAttribute("data-capturar-antes"));
+    document.body.appendChild(marco);
+});
+</script>
 </body>
 </html>

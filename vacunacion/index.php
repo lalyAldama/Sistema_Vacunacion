@@ -40,6 +40,13 @@ if(isset($_GET["buscar"])) {
 
     <body>
         <h1>REGISTRAR APLICACIÓN DE VACUNAS</h1>
+        <section>
+            <h2>APLICACIÓN CONFIDENCIAL DE VPH</h2>
+            <p>Registra aplicaciones de VPH sin seleccionar ni guardar datos de un paciente. Se requiere elegir grupo, dosis, lote, fecha y si la persona es migrante.</p>
+            <a href="registrar_vph_confidencial.php" class="btn btn-censo">
+                REGISTRAR VPH SIN EXPEDIENTE
+            </a>
+        </section>
         <h2>BUSCAR PACIENTE</h2>
 
         <form method="GET" action="index.php">

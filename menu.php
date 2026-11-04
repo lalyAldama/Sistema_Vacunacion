@@ -92,11 +92,11 @@ $nombre = $_SESSION["nombre"] ?? "Usuario";
                     <span class="menu-flecha">›</span>
                 </a>
 
-                  <a class="menu-tarjeta morado" href="reportes/index.php">
+                  <a class="menu-tarjeta morado" href="paloteo/paloteo_general.php">
                     <span class="menu-icono">▥</span>
                     <span class="menu-texto">
                         <strong>Paloteo</strong>
-                        <small>Consulta de reportes del sistema</small>
+                        <small>Registro e impresión del paloteo general</small>
                     </span>
                     <span class="menu-flecha">›</span>
                 </a>

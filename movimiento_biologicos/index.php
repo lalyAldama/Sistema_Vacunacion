@@ -7,6 +7,8 @@ if (!isset($_SESSION["id_usuario"])) {
 }
 
 require_once "../config/conexion.php";
+require_once __DIR__ . "/../vacunacion/funciones_vph.php";
+asegurarEsquemaVph($conexion);
 
 $zonaHoraria = new DateTimeZone("America/Mexico_City");
 $mesActual = (new DateTimeImmutable("today", $zonaHoraria))->format("Y-m");
@@ -245,6 +247,22 @@ $sql = "SELECT p.id_biologico AS id_biologico_lote,
         GROUP BY p.id_biologico, eb.id_biologico";
 $aplicadasMes = cargarFilas($conexion, $sql, "iss", $idUnidad, $inicioMes, $finMes);
 $aplicadasAnio = cargarFilas($conexion, $sql, "iss", $idUnidad, $inicioAnio, $finMes);
+$sqlAplicacionesVphAnonimas = "SELECT pr.id_biologico AS id_biologico_lote,
+                                      pr.id_biologico AS id_biologico_indicado,
+                                      COUNT(*) AS total
+                               FROM APLICACION_VPH_ANONIMA aa
+                               INNER JOIN LOTE l ON l.id_lote = aa.id_lote
+                               INNER JOIN PRESENTACION pr ON pr.id_presentacion = l.id_presentacion
+                               WHERE aa.id_unidad = ? AND aa.fecha_aplicacion >= ? AND aa.fecha_aplicacion < ?
+                               GROUP BY pr.id_biologico";
+$aplicadasMes = array_merge(
+    $aplicadasMes,
+    cargarFilas($conexion, $sqlAplicacionesVphAnonimas, "iss", $idUnidad, $inicioMes, $finMes)
+);
+$aplicadasAnio = array_merge(
+    $aplicadasAnio,
+    cargarFilas($conexion, $sqlAplicacionesVphAnonimas, "iss", $idUnidad, $inicioAnio, $finMes)
+);
 
 function separarAplicacionesPorBiologicoYReemplazo($filas, $paresReemplazo)
 {
@@ -300,17 +318,96 @@ $sqlLotes = "SELECT b.id_biologico, b.nombre_biologico, p.id_presentacion, l.id_
                     l.fecha_caducidad, p.dosis_por_frasco,
                     SUM(CASE WHEN mb.tipo_movimiento = 'Entrada' THEN mb.cantidad_frascos ELSE 0 END) AS recibidos,
                     (SELECT COUNT(*) FROM APLICACION_VACUNA av
-                     WHERE av.id_lote = l.id_lote AND av.id_unidad = ? AND av.fecha_aplicacion < ?) AS aplicaciones,
-                    SUM(CASE WHEN mb.tipo_movimiento = 'Desecho' THEN mb.cantidad_dosis ELSE 0 END) AS dosis_desechadas
+                     WHERE av.id_lote = l.id_lote AND av.id_unidad = ? AND av.fecha_aplicacion < ?)
+                    + (SELECT COUNT(*) FROM APLICACION_VPH_ANONIMA aa
+                       WHERE aa.id_lote = l.id_lote AND aa.id_unidad = ? AND aa.fecha_aplicacion < ?) AS aplicaciones,
+                    SUM(CASE WHEN mb.tipo_movimiento = 'Desecho' THEN mb.cantidad_dosis ELSE 0 END) AS dosis_desechadas,
+                    COALESCE((
+                        SELECT SUM(CASE
+                            WHEN mbd.id_unidad = ? THEN -mbd.cantidad_frascos
+                            WHEN mbd.id_unidad_receptora = ? THEN mbd.cantidad_frascos
+                            ELSE 0
+                        END)
+                        FROM MOVIMIENTO_BIOLOGICO mbd
+                        WHERE mbd.id_lote = l.id_lote
+                          AND mbd.tipo_movimiento = 'Donación'
+                          AND (mbd.id_unidad = ? OR mbd.id_unidad_receptora = ?)
+                          AND mbd.fecha_movimiento < ?
+                    ), 0) AS donaciones_netas
              FROM LOTE l
              INNER JOIN PRESENTACION p ON p.id_presentacion = l.id_presentacion
              INNER JOIN BIOLOGICO b ON b.id_biologico = p.id_biologico
              LEFT JOIN MOVIMIENTO_BIOLOGICO mb ON mb.id_lote = l.id_lote AND mb.id_unidad = ? AND mb.fecha_movimiento < ?
              GROUP BY b.id_biologico, b.nombre_biologico, p.id_presentacion, l.id_lote, l.numero_lote, l.fecha_caducidad, p.dosis_por_frasco
-             HAVING recibidos <> 0 OR aplicaciones <> 0 OR dosis_desechadas <> 0
+             HAVING recibidos <> 0 OR aplicaciones <> 0 OR dosis_desechadas <> 0 OR donaciones_netas <> 0
              ORDER BY b.nombre_biologico, l.fecha_caducidad, l.numero_lote";
-$lotesSaldo = cargarFilas($conexion, $sqlLotes, "isis", $idUnidad, $finMes, $idUnidad, $finMes);
-$lotesApertura = cargarFilas($conexion, $sqlLotes, "isis", $idUnidad, $inicioMes, $idUnidad, $inicioMes);
+$lotesSaldo = cargarFilas(
+    $conexion,
+    $sqlLotes,
+    "isisiiiisis",
+    $idUnidad,
+    $finMes,
+    $idUnidad,
+    $finMes,
+    $idUnidad,
+    $idUnidad,
+    $idUnidad,
+    $idUnidad,
+    $finMes,
+    $idUnidad,
+    $finMes
+);
+$lotesApertura = cargarFilas(
+    $conexion,
+    $sqlLotes,
+    "isisiiiisis",
+    $idUnidad,
+    $inicioMes,
+    $idUnidad,
+    $inicioMes,
+    $idUnidad,
+    $idUnidad,
+    $idUnidad,
+    $idUnidad,
+    $inicioMes,
+    $idUnidad,
+    $inicioMes
+);
+
+$sqlLotesConMovimientoMes = "SELECT mb.id_lote
+                             FROM MOVIMIENTO_BIOLOGICO mb
+                             WHERE mb.fecha_movimiento >= ? AND mb.fecha_movimiento < ?
+                               AND (
+                                   (mb.id_unidad = ? AND mb.tipo_movimiento IN ('Entrada', 'Desecho', 'Donación'))
+                                   OR (mb.tipo_movimiento = 'Donación' AND mb.id_unidad_receptora = ?)
+                               )
+                             UNION
+                             SELECT av.id_lote
+                             FROM APLICACION_VACUNA av
+                             WHERE av.id_unidad = ? AND av.fecha_aplicacion >= ? AND av.fecha_aplicacion < ?
+                             UNION
+                             SELECT aa.id_lote
+                             FROM APLICACION_VPH_ANONIMA aa
+                             WHERE aa.id_unidad = ? AND aa.fecha_aplicacion >= ? AND aa.fecha_aplicacion < ?";
+$movimientosLotesMes = cargarFilas(
+    $conexion,
+    $sqlLotesConMovimientoMes,
+    "ssiiississ",
+    $inicioMes,
+    $finMes,
+    $idUnidad,
+    $idUnidad,
+    $idUnidad,
+    $inicioMes,
+    $finMes,
+    $idUnidad,
+    $inicioMes,
+    $finMes
+);
+$lotesConMovimientoMes = [];
+foreach ($movimientosLotesMes as $movimientoLote) {
+    $lotesConMovimientoMes[(int)$movimientoLote["id_lote"]] = true;
+}
 
 $sqlLotesMes = "SELECT b.id_biologico, p.id_presentacion, l.id_lote, l.numero_lote,
                        l.fecha_caducidad, SUM(mb.cantidad_frascos) AS frascos,
@@ -437,8 +534,22 @@ $desechoAnio = mapaPorBiologico($desechos, "anio", "id_presentacion");
 $entradasMes = mapaPorBiologico($entradas, "mes", "id_presentacion");
 $entradasAnio = mapaPorBiologico($entradas, "anio", "id_presentacion");
 $detallePorBio = $aperturaPorBio = [];
+foreach ($lotesApertura as $lote) {
+    $dosisPorFrasco = max(1, (float)$lote["dosis_por_frasco"]);
+    $existencia = (float)$lote["recibidos"]
+        + (float)$lote["donaciones_netas"]
+        - ((float)$lote["aplicaciones"] + (float)$lote["dosis_desechadas"])
+            / $dosisPorFrasco;
+    $idBiologico = (int)$lote["id_biologico"];
+    $aperturaPorBio[$idBiologico] =
+        ($aperturaPorBio[$idBiologico] ?? 0) + $existencia;
+}
 foreach ($lotesEntradasMes as $lote) $detallePorBio[(int)$lote["id_presentacion"]][(int)$lote["id_lote"]]["entrada"] = $lote;
-foreach ($lotesSaldo as $lote) $detallePorBio[(int)$lote["id_presentacion"]][(int)$lote["id_lote"]]["saldo"] = $lote;
+foreach ($lotesSaldo as $lote) {
+    if (isset($lotesConMovimientoMes[(int)$lote["id_lote"]])) {
+        $detallePorBio[(int)$lote["id_presentacion"]][(int)$lote["id_lote"]]["saldo"] = $lote;
+    }
+}
 foreach ($lotesDesechoMes as $lote) $detallePorBio[(int)$lote["id_presentacion"]][(int)$lote["id_lote"]]["desecho"] = $lote;
 foreach ($lotesDonacionMes as $lote) {
     $detallePorBio[(int)$lote["id_presentacion"]][(int)$lote["id_lote"]]["donacion"] = $lote;
@@ -753,6 +864,7 @@ function fmt($valor) { return number_format((float)$valor, 2, ".", ""); }
                                 (float)$saldoFamilia["dosis_por_frasco"]
                             );
                             $existenciaCorteGrupo += (float)$saldoFamilia["recibidos"]
+                                + (float)$saldoFamilia["donaciones_netas"]
                                 - (
                                     (float)$saldoFamilia["aplicaciones"]
                                     + (float)$saldoFamilia["dosis_desechadas"]
@@ -773,7 +885,11 @@ function fmt($valor) { return number_format((float)$valor, 2, ".", ""); }
                         $loteDesecho = $detalle["desecho"] ?? null;
                         $loteDonacion = $detalle["donacion"] ?? null;
                         $dpf = $loteSaldo ? max(1, (float)$loteSaldo["dosis_por_frasco"]) : 1;
-                        $stockLote = $loteSaldo ? (float)$loteSaldo["recibidos"] - ((float)$loteSaldo["aplicaciones"] + (float)$loteSaldo["dosis_desechadas"]) / $dpf : 0;
+                        $stockLote = $loteSaldo
+                            ? (float)$loteSaldo["recibidos"]
+                                + (float)$loteSaldo["donaciones_netas"]
+                                - ((float)$loteSaldo["aplicaciones"] + (float)$loteSaldo["dosis_desechadas"]) / $dpf
+                            : 0;
                         $sumarBio = function($mapa) use ($idsFila) { $total = 0; foreach ($idsFila as $id) $total += (float)($mapa[$id] ?? 0); return $total; };
                         $sumarPresentacion = function($mapa) use ($definicion) { $total = 0; foreach ($definicion["presentaciones"] as $id) $total += (float)($mapa[$id] ?? 0); return $total; };
                         $aplicadasMesFila = isset($definicion["familiaEdad"])

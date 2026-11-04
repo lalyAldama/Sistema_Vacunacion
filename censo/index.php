@@ -7,6 +7,8 @@ if (!isset($_SESSION["id_usuario"])) {
 }
 
 require_once "../config/conexion.php";
+require_once __DIR__ . "/historial.php";
+censoHistorialAsegurarTabla($conexion);
 
 function e($valor)
 {
@@ -85,6 +87,80 @@ function tipoCenso($idCenso)
 $idCenso = isset($_GET["censo"]) ? (int)$_GET["censo"] : 0;
 $buscar = isset($_GET["buscar"]) ? trim($_GET["buscar"]) : "";
 $idPacienteSolicitado = isset($_GET["id_paciente"]) ? trim($_GET["id_paciente"]) : "";
+
+if (
+    isset($_GET["capturar_previo"], $_GET["token_previo"])
+    && is_string($_GET["capturar_previo"])
+    && $_GET["capturar_previo"] === "1"
+    && is_string($_GET["token_previo"])
+) {
+    $tokenPrevioEsperado = hash_hmac(
+        "sha256",
+        "censo_historial|general|" . $idCenso,
+        $_SESSION["form_guard_secret"]
+    );
+    if (
+        !in_array($idCenso, [1, 2, 3], true)
+        || !hash_equals($tokenPrevioEsperado, $_GET["token_previo"])
+    ) {
+        http_response_code(400);
+        exit("La solicitud de captura previa no es válida.");
+    }
+
+    $inicioFormularioHistorial = time() - 3;
+    $nonceFormularioHistorial = bin2hex(random_bytes(16));
+    $pruebaFormularioHistorial = hash_hmac(
+        "sha256",
+        $inicioFormularioHistorial . "|" . $nonceFormularioHistorial,
+        $_SESSION["form_guard_secret"]
+    );
+    $capturarCensoPrevio = true;
+} else {
+    $capturarCensoPrevio = false;
+}
+
+if (array_key_exists("historico_fecha", $_GET)) {
+    if (!in_array($idCenso, [1, 2, 3], true)) {
+        http_response_code(400);
+        exit("El censo seleccionado no es válido.");
+    }
+
+    $titulosHistoricos = [
+        1 => "CENSO NOMINAL 0 A 9 AÑOS",
+        2 => "CENSO NOMINAL 10 A 19 AÑOS",
+        3 => "CENSO NOMINAL DE ADULTOS Y EMBARAZADAS"
+    ];
+    censoHistorialMostrar(
+        $conexion,
+        "general",
+        $idCenso,
+        $titulosHistoricos[$idCenso],
+        "index.php",
+        is_string($_GET["historico_fecha"]) ? $_GET["historico_fecha"] : "",
+        true
+    );
+    exit;
+}
+
+$capturaHistorialActiva = in_array($idCenso, [1, 2, 3], true)
+    && $buscar === ""
+    && $idPacienteSolicitado === "";
+$tokenHistorial = $capturaHistorialActiva
+    ? hash_hmac(
+        "sha256",
+        "censo_historial|general|" . $idCenso,
+        $_SESSION["form_guard_secret"]
+    )
+    : "";
+$inicioFormularioHistorial = $capturaHistorialActiva ? time() - 3 : 0;
+$nonceFormularioHistorial = $capturaHistorialActiva ? bin2hex(random_bytes(16)) : "";
+$pruebaFormularioHistorial = $capturaHistorialActiva
+    ? hash_hmac(
+        "sha256",
+        $inicioFormularioHistorial . "|" . $nonceFormularioHistorial,
+        $_SESSION["form_guard_secret"]
+    )
+    : "";
 
 $pacientes = [];
 $tutores = [];
@@ -548,7 +624,17 @@ foreach ($vacunasEsquema as $bio) {
         @media print { .pie-censo-oficial { break-inside: avoid; } }
 </style>
 </head>
-<body>
+<body<?php if ($capturaHistorialActiva): ?>
+    data-historial-tipo="general"
+    data-historial-censo="<?php echo e($idCenso); ?>"
+    data-historial-token="<?php echo e($capturarCensoPrevio ? $_GET["token_previo"] : $tokenHistorial); ?>"
+    data-historial-form-inicio="<?php echo e($inicioFormularioHistorial); ?>"
+    data-historial-form-nonce="<?php echo e($nonceFormularioHistorial); ?>"
+    data-historial-form-prueba="<?php echo e($pruebaFormularioHistorial); ?>"
+    data-capturar-influenza="<?php echo isset($_GET["capturar_historial"]) && $_GET["capturar_historial"] === "1" ? "1" : "0"; ?>"
+    data-capturar-censo-anterior="<?php echo isset($_GET["capturar_censo_anterior"]) ? (int)$_GET["capturar_censo_anterior"] : ""; ?>"
+    data-volver-vacunacion="<?php echo isset($_GET["volver_vacunacion"]) && $_GET["volver_vacunacion"] === "1" ? "1" : "0"; ?>"
+<?php endif; ?>>
 
 <div class="pagina">
 
@@ -583,6 +669,16 @@ foreach ($vacunasEsquema as $bio) {
             <a href="influenza.php" class="btn btn-censo">CENSO DE INFLUENZA</a>
         </div>
     </div>
+
+    <?php if ($idCenso > 0 && !$modoResultadosBusqueda && $idPacienteSolicitado === "" && $buscar === ""): ?>
+        <section class="panel-filtros consulta-historica">
+            <form method="get" action="index.php" class="buscador">
+                <input type="hidden" name="censo" value="<?php echo e($idCenso); ?>">
+                <input id="fecha-historica" type="date" name="historico_fecha" max="<?php echo date("Y-m-d"); ?>" required>
+                <button type="submit" class="btn btn-azul">CONSULTAR HISTORIAL</button>
+            </form>
+        </section>
+    <?php endif; ?>
 
     <?php if ($modoResultadosBusqueda): ?>
 
@@ -1069,6 +1165,9 @@ document.querySelectorAll("[data-editable-key]").forEach(function (campo) {
     });
 });
 </script>
+<?php if ($capturaHistorialActiva): ?>
+    <script src="js/historial.js"></script>
+<?php endif; ?>
 
 </body>
 </html>

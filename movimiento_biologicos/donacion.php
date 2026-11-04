@@ -7,6 +7,8 @@ if (!isset($_SESSION["id_usuario"])) {
 }
 
 require_once "../config/conexion.php";
+require_once __DIR__ . "/../vacunacion/funciones_vph.php";
+asegurarEsquemaVph($conexion);
 
 function h($valor) {
     return htmlspecialchars((string)$valor, ENT_QUOTES, "UTF-8");
@@ -48,19 +50,28 @@ function obtenerExistencia($conexion, $idLote, $idUnidad) {
                        FROM MOVIMIENTO_BIOLOGICO mb
                        WHERE mb.id_lote = l.id_lote
                    ), 0)
-                   - COALESCE((
-                       SELECT COUNT(*)
-                       FROM APLICACION_VACUNA av
-                       WHERE av.id_lote = l.id_lote
-                         AND av.id_unidad = ?
-                   ), 0) / p.dosis_por_frasco AS disponible
+                   - (
+                       COALESCE((
+                           SELECT COUNT(*)
+                           FROM APLICACION_VACUNA av
+                           WHERE av.id_lote = l.id_lote
+                             AND av.id_unidad = ?
+                       ), 0)
+                       + COALESCE((
+                           SELECT COUNT(*)
+                           FROM APLICACION_VPH_ANONIMA aa
+                           WHERE aa.id_lote = l.id_lote
+                             AND aa.id_unidad = ?
+                       ), 0)
+                   ) / p.dosis_por_frasco AS disponible
             FROM LOTE l
             INNER JOIN PRESENTACION p ON p.id_presentacion = l.id_presentacion
             WHERE l.id_lote = ?";
 
     $stmt = $conexion->prepare($sql);
     $stmt->bind_param(
-        "iiiiii",
+        "iiiiiii",
+        $idUnidad,
         $idUnidad,
         $idUnidad,
         $idUnidad,
