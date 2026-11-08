@@ -36,75 +36,109 @@ if(isset($_GET["buscar"])) {
         <meta charset="UTF-8">
         <title>REGISTRO DE APLICACIÓN DE VACUNAS</title>
         <link rel="stylesheet" href="../css/estilos.css">
+        <link rel="stylesheet" href="css/registro-vacunacion.css">
     </head>
 
     <body>
-        <h1>REGISTRAR APLICACIÓN DE VACUNAS</h1>
-        <section>
-            <h2>APLICACIÓN CONFIDENCIAL DE VPH</h2>
-            <p>Registra aplicaciones de VPH sin seleccionar ni guardar datos de un paciente. Se requiere elegir grupo, dosis, lote, fecha y si la persona es migrante.</p>
-            <a href="registrar_vph_confidencial.php" class="btn btn-censo">
-                REGISTRAR VPH SIN EXPEDIENTE
-            </a>
-        </section>
-        <h2>BUSCAR PACIENTE</h2>
+        <main class="registro-vacunacion">
+            <header class="encabezado-registro">
+                <div>
+                    <span class="sobrelinea-registro">GESTIÓN DE INMUNIZACIÓN</span>
+                    <h1>Registro de aplicación</h1>
+                    <p>Elige cómo registrar la vacuna para continuar.</p>
+                </div>
+            </header>
 
-        <form method="GET" action="index.php">
-            <input type="text" name="buscar" placeholder="Nombre, apellidos", 
-            value="<?php echo htmlspecialchars($busqueda); ?>" required>
+            <section class="opciones-registro" aria-label="Opciones de registro">
+                <article class="opcion-registro opcion-expediente">
+                    <div class="encabezado-opcion">
+                        <span class="icono-opcion" aria-hidden="true">01</span>
+                        <span class="etiqueta-opcion">REGISTRO HABITUAL</span>
+                    </div>
+                    <h2>Con expediente</h2>
+                    <p>Busca a la persona para registrar la aplicación en su expediente y en el esquema correspondiente.</p>
 
-            <button type="submit">BUSCAR</button>
-        </form>
+                    <form method="GET" action="index.php" class="formulario-busqueda">
+                        <label for="buscar">Nombre, apellidos o CURP</label>
+                        <div class="control-busqueda">
+                            <input
+                                type="text"
+                                id="buscar"
+                                name="buscar"
+                                placeholder="Escribe para buscar..."
+                                value="<?php echo htmlspecialchars($busqueda, ENT_QUOTES, "UTF-8"); ?>"
+                                required
+                            >
+                            <button type="submit">Buscar paciente</button>
+                        </div>
+                    </form>
+                </article>
 
-       <?php if ($resultados !== null): ?>
-        <h2>RESULTADOS</h2>
-        <?php if($resultados->num_rows > 0): ?>
-            <table border="1" cellpadding="8">
-                <tr>
-                    <th>Nombre Completo:</th>
-                    <th>Fecha de Nacimiento</th>
-                    <th>CURP</th>
-                    <th>ACCION</th>
-                </tr>
+                <article class="opcion-registro opcion-confidencial">
+                    <div class="encabezado-opcion">
+                        <span class="icono-opcion icono-opcion--turquesa" aria-hidden="true">VPH</span>
+                        <span class="etiqueta-opcion etiqueta-opcion--turquesa">MODALIDAD CONFIDENCIAL</span>
+                    </div>
+                    <h2>Aplicación de VPH</h2>
+                    <p>Para registrar esta aplicación sin buscar ni guardar datos de una persona en un expediente.</p>
 
-                <?php while($paciente = $resultados->fetch_assoc()) : ?>
-                    <tr>
-                        <td>
-                            <?php
-                            echo htmlspecialchars(
-                                $paciente["ap_pat"] .  ""  . $paciente["ap_mat"] .  ""  .  $paciente["nombres"]
-                            );
-                            ?>
-                        </td>
+                    <ul class="resumen-confidencial">
+                        <li><span>Se registra</span> grupo, dosis, lote y fecha</li>
+                        <li><span>También se indica</span> si la persona es migrante</li>
+                        <li><span>No se solicita</span> nombre ni CURP</li>
+                    </ul>
 
-                        <td><?php echo htmlspecialchars($paciente["fecha_nacimiento"]);
-                        ?>
-                        </td>
+                    <a href="registrar_vph_confidencial.php" class="boton-confidencial">
+                        Iniciar registro confidencial
+                        <span aria-hidden="true">→</span>
+                    </a>
+                </article>
+            </section>
 
-                        <td>
-                            <?php echo htmlspecialchars($paciente["curp"] ?? ""); ?>
-                        </td>
+            <?php if ($resultados !== null): ?>
+                <section class="resultados-registro" aria-labelledby="titulo-resultados">
+                    <div class="titulo-resultados">
+                        <div>
+                            <span class="sobrelinea-registro">BÚSQUEDA DE PACIENTES</span>
+                            <h2 id="titulo-resultados">Resultados</h2>
+                        </div>
+                        <span class="termino-busqueda"><?php echo htmlspecialchars($busqueda, ENT_QUOTES, "UTF-8"); ?></span>
+                    </div>
 
-                        <td>
-                            <a href="registrar_vacuna.php?id=<?php echo urlencode($paciente["id_paciente"]);?>" class="btn btn-censo">
-                                REGISTRAR APLICACIÓN
-                            </a>
-                        </td>
-                    </tr>
-                    <?php endwhile; ?>
-            </table>
+                    <?php if ($resultados->num_rows > 0): ?>
+                        <div class="tabla-registro-contenedor">
+                            <table class="tabla-registro">
+                                <thead>
+                                    <tr>
+                                        <th>Nombre completo</th>
+                                        <th>Fecha de nacimiento</th>
+                                        <th>CURP</th>
+                                        <th>Acción</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php while($paciente = $resultados->fetch_assoc()) : ?>
+                                        <tr>
+                                            <td><?php echo htmlspecialchars($paciente["ap_pat"] . " " . $paciente["ap_mat"] . " " . $paciente["nombres"]); ?></td>
+                                            <td><?php echo htmlspecialchars($paciente["fecha_nacimiento"]); ?></td>
+                                            <td><?php echo htmlspecialchars($paciente["curp"] ?? ""); ?></td>
+                                            <td>
+                                                <a href="registrar_vacuna.php?id=<?php echo urlencode($paciente["id_paciente"]); ?>" class="boton-tabla">
+                                                    Registrar aplicación
+                                                </a>
+                                            </td>
+                                        </tr>
+                                    <?php endwhile; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                    <?php else: ?>
+                        <p class="sin-resultados">No se encontraron pacientes con esos datos. Revisa el nombre o la CURP e inténtalo de nuevo.</p>
+                    <?php endif; ?>
 
-            <?php else: ?>
-                <p>No se encontraron pacientes</p>
+                    <?php $stmt->close(); ?>
+                </section>
             <?php endif; ?>
-
-            <?php $stmt->close(); ?>
-
-            <?php endif; ?>
-
-            <br>
-            <a href="../censo/index.php">
-                <button type="button"> REGRESAR AL CENSO </button>
-            </a>
+        </main>
     </body>
 </html>

@@ -598,7 +598,11 @@ function fmt($valor) { return number_format((float)$valor, 2, ".", ""); }
     <title>Movimiento de biológicos</title>
     <link rel="stylesheet" href="../css/estilos.css">
     <style>
-        .filtro-informe { margin: 16px 0; }
+        .filtro-informe { display: flex; align-items: end; gap: 8px; margin: 16px 0; }
+        .filtro-informe input[type="month"] { width: 175px; }
+        .boton-icono { display: inline-flex; width: 40px; height: 40px; align-items: center; justify-content: center; padding: 8px; border: 0; border-radius: 5px; cursor: pointer; }
+        .boton-icono svg { width: 20px; height: 20px; }
+        .boton-icono:disabled { opacity: .55; cursor: not-allowed; }
         .tabla-movimiento { overflow-x: auto; }
         .tabla-movimiento table { min-width: 1250px; border-collapse: collapse; }
         .tabla-movimiento th, .tabla-movimiento td { border: 3px solid #333; padding: 10px; text-align: center; vertical-align: middle; }
@@ -732,6 +736,7 @@ function fmt($valor) { return number_format((float)$valor, 2, ".", ""); }
             .estado-encabezado { display: none; }
         }
     </style>
+    <link rel="stylesheet" href="../css/tema_reportes.css">
 </head>
 <body>
     <h1>MOVIMIENTO DE BIOLÓGICOS Y JERINGAS</h1>
@@ -774,19 +779,35 @@ function fmt($valor) { return number_format((float)$valor, 2, ".", ""); }
         <form class="filtro-informe" method="get">
         <label for="mes"><strong>MES DEL INFORME:</strong></label>
         <input id="mes" name="mes" type="month" max="<?php echo h($mesActual); ?>" value="<?php echo h($mes); ?>">
-        <button type="submit">CONSULTAR</button>
+        <button class="boton-icono" type="submit" aria-label="Consultar informe" title="Consultar informe">
+            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="10.8" cy="10.8" r="6.8"></circle><path d="m16 16 5 5"></path>
+            </svg>
+        </button>
     </form>
 
     <h2>MOVIMIENTO DE BIOLÓGICOS</h2>
     <div class="botones">
         <?php if ($puedeRegistrarMovimientos): ?>
-        <a href="entrada.php"><button>+ NUEVA ENTRADA</button></a>
-        <a href="desecho.php"><button>+ NUEVO DESECHO</button></a>
-        <a href="donacion.php"><button>+ NUEVA DONACIÓN</button></a>
+        <a class="btn boton-icono" href="entrada.php" aria-label="Agregar nueva entrada" title="Agregar nueva entrada">
+            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7.5 12 3l8 4.5v9L12 21l-8-4.5z"></path><path d="m4.5 7.8 7.5 4.4 7.5-4.4M12 12.2V21"></path><path d="M12 6v4m-2-2h4"></path></svg>
+        </a>
+        <a class="btn boton-icono" href="desecho.php" aria-label="Registrar desecho" title="Registrar desecho">
+            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6m4-6v6M6 7l1 14h10l1-14M9 7V4h6v3"></path></svg>
+        </a>
+        <a class="btn boton-icono" href="donacion.php" aria-label="Registrar donación" title="Registrar donación">
+            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-8-4.8-8-11a4.5 4.5 0 0 1 8-2.8A4.5 4.5 0 0 1 20 10c0 6.2-8 11-8 11Z"></path><path d="M8 12h8m-4-4v8"></path></svg>
+        </a>
         <?php else: ?>
-        <button type="button" disabled>+ NUEVA ENTRADA</button>
-        <button type="button" disabled>+ NUEVO DESECHO</button>
-        <button type="button" disabled>+ NUEVA DONACIÓN</button>
+        <button class="btn boton-icono" type="button" disabled aria-label="Agregar nueva entrada deshabilitada" title="Agregar nueva entrada deshabilitada">
+            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7.5 12 3l8 4.5v9L12 21l-8-4.5z"></path><path d="m4.5 7.8 7.5 4.4 7.5-4.4M12 12.2V21"></path><path d="M12 6v4m-2-2h4"></path></svg>
+        </button>
+        <button class="btn boton-icono" type="button" disabled aria-label="Registrar desecho deshabilitado" title="Registrar desecho deshabilitado">
+            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6m4-6v6M6 7l1 14h10l1-14M9 7V4h6v3"></path></svg>
+        </button>
+        <button class="btn boton-icono" type="button" disabled aria-label="Registrar donación deshabilitada" title="Registrar donación deshabilitada">
+            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-8-4.8-8-11a4.5 4.5 0 0 1 8-2.8A4.5 4.5 0 0 1 20 10c0 6.2-8 11-8 11Z"></path><path d="M8 12h8m-4-4v8"></path></svg>
+        </button>
         <?php endif; ?>
     </div>
     <?php if (!$puedeRegistrarMovimientos): ?>
@@ -997,11 +1018,19 @@ function fmt($valor) { return number_format((float)$valor, 2, ".", ""); }
     <?php endif; ?>
     <div class="botones">
         <?php if ($puedeRegistrarMovimientos): ?>
-        <a href="entrada_jeringa.php"><button>+ NUEVA ENTRADA DE JERINGAS</button></a>
-        <a href="salida_jeringa.php"><button>+ NUEVA SALIDA DE JERINGAS</button></a>
+        <a class="btn boton-icono" href="entrada_jeringa.php" aria-label="Nueva entrada de jeringas" title="Nueva entrada de jeringas">
+            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"></path></svg>
+        </a>
+        <a class="btn boton-icono" href="salida_jeringa.php" aria-label="Nueva salida de jeringas" title="Nueva salida de jeringas">
+            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"></path></svg>
+        </a>
         <?php else: ?>
-        <button type="button" disabled>+ NUEVA ENTRADA DE JERINGAS</button>
-        <button type="button" disabled>+ NUEVA SALIDA DE JERINGAS</button>
+        <button class="btn boton-icono" type="button" disabled aria-label="Nueva entrada de jeringas deshabilitada" title="Nueva entrada de jeringas deshabilitada">
+            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"></path></svg>
+        </button>
+        <button class="btn boton-icono" type="button" disabled aria-label="Nueva salida de jeringas deshabilitada" title="Nueva salida de jeringas deshabilitada">
+            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14" ></path></svg>
+        </button>
         <?php endif; ?>
     </div>
     <div class="contenedor-tabla tabla-movimiento tabla-jeringas">

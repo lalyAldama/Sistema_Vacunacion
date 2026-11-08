@@ -69,7 +69,6 @@ $nombre = $_SESSION["nombre"] ?? "Usuario";
                     <span class="menu-icono">▤</span>
                     <span class="menu-texto">
                         <strong>Censo nominal</strong>
-                        <small>Registro y consulta de pacientes</small>
                     </span>
                     <span class="menu-flecha">›</span>
                 </a>
@@ -78,7 +77,6 @@ $nombre = $_SESSION["nombre"] ?? "Usuario";
                     <span class="menu-icono">▣</span>
                     <span class="menu-texto">
                         <strong>Movimiento de biológicos y jeringas</strong>
-                        <small>Control de entradas y salidas</small>
                     </span>
                     <span class="menu-flecha">›</span>
                 </a>
@@ -87,7 +85,6 @@ $nombre = $_SESSION["nombre"] ?? "Usuario";
                     <span class="menu-icono">▥</span>
                     <span class="menu-texto">
                         <strong>Aplicación de vacunas</strong>
-                        <small>Registre nueva aplicación de vacuna</small>
                     </span>
                     <span class="menu-flecha">›</span>
                 </a>
@@ -96,17 +93,46 @@ $nombre = $_SESSION["nombre"] ?? "Usuario";
                     <span class="menu-icono">▥</span>
                     <span class="menu-texto">
                         <strong>Paloteo</strong>
-                        <small>Registro e impresión del paloteo general</small>
                     </span>
                     <span class="menu-flecha">›</span>
                 </a>
 
 
+                  <a class="menu-tarjeta morado" href="paloteo/paloteo_influenza.php">
+                    <span class="menu-icono">▥</span>
+                    <span class="menu-texto">
+                        <strong>Paloteo de influenza</strong>
+                    </span>
+                    <span class="menu-flecha">›</span>
+                </a>
+
+                <a class="menu-tarjeta morado" href="paloteo/paloteo_covid.php">
+                    <span class="menu-icono">▥</span>
+                    <span class="menu-texto">
+                        <strong>Paloteo de COVID-19</strong>
+                    </span>
+                    <span class="menu-flecha">›</span>
+                </a>
+                                  <a class="menu-tarjeta morado" href="Informe_mensual/mensual_general.php">
+                      <span class="menu-icono">▤</span>
+                      <span class="menu-texto">
+                          <strong>Informes mensuales</strong>
+                      </span>
+                      <span class="menu-flecha">›</span>
+                  </a>
+
+                <a class="menu-tarjeta verde" href="Informe_mensual/anual.php">
+                    <span class="menu-icono">▤</span>
+                    <span class="menu-texto">
+                        <strong>Informe anual</strong>
+                    </span>
+                    <span class="menu-flecha">›</span>
+                </a>
+
                 <a class="menu-tarjeta naranja" href="consultas/index.php">
                     <span class="menu-icono">⌕</span>
                     <span class="menu-texto">
                         <strong>Consultas</strong>
-                        <small>Búsqueda de información</small>
                     </span>
                     <span class="menu-flecha">›</span>
                 </a>
@@ -114,8 +140,7 @@ $nombre = $_SESSION["nombre"] ?? "Usuario";
                 <a class="menu-tarjeta turquesa" href="exportar_importar/index.php">
                     <span class="menu-icono">⇄</span>
                     <span class="menu-texto">
-                        <strong>Exportar / Actualizar</strong>
-                        <small>Intercambio y actualización de datos</small>
+                        <strong>Exportar información</strong>
                     </span>
                     <span class="menu-flecha">›</span>
                 </a>

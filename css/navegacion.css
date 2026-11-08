@@ -1,0 +1,53 @@
+.boton-menu-principal {
+    position: fixed;
+    right: 24px;
+    bottom: 24px;
+    z-index: 1000;
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    min-height: 48px;
+    padding: 11px 16px;
+    border: 1px solid #285F70;
+    border-radius: 999px;
+    background: #285F70;
+    box-shadow: 0 4px 14px rgba(40, 95, 112, 0.28);
+    color: #FFFFFF;
+    font: 700 14px/1 Arial, Helvetica, sans-serif;
+    text-decoration: none;
+    transition: background-color 0.2s ease, transform 0.2s ease;
+}
+
+.boton-menu-principal:hover {
+    transform: translateY(-2px);
+    background: #347F91;
+    color: #FFFFFF;
+}
+
+.boton-menu-principal:focus-visible {
+    outline: 3px solid #35AFA8;
+    outline-offset: 3px;
+}
+
+.boton-menu-principal svg {
+    width: 20px;
+    height: 20px;
+    fill: none;
+    stroke: currentColor;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-width: 1.8;
+}
+
+@media (max-width: 480px) {
+    .boton-menu-principal {
+        right: 14px;
+        bottom: 14px;
+    }
+}
+
+@media print {
+    .boton-menu-principal {
+        display: none;
+    }
+}

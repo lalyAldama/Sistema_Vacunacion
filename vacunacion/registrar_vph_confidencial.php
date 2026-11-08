@@ -146,10 +146,9 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         if (!$filaDosis) {
             $error = "La dosis seleccionada no corresponde al biológico VPH.";
         } elseif (
-            in_array($valores["categoria"], ["mujeres_vih", "hombres_vih"], true)
-            && obtenerRenglonVph($valores["categoria"], $filaDosis["nombre_dosis"]) === null
+            obtenerRenglonVph($valores["categoria"], $filaDosis["nombre_dosis"]) === null
         ) {
-            $error = "Para los grupos que viven con VIH selecciona la primera, segunda o tercera dosis.";
+            $error = "La dosis seleccionada no corresponde al grupo de población VPH.";
         } else {
             $conexion->begin_transaction();
             $stmtBloquearLote = $conexion->prepare(

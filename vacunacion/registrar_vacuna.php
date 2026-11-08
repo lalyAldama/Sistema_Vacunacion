@@ -284,7 +284,10 @@ $idDpt = buscarIdBiologicoPorAlias($biologicosArray, ["DPT"]);
 $idTdpa = buscarIdBiologicoPorAlias($biologicosArray, ["TDPA"]);
 $idTd = buscarIdBiologicoPorAlias($biologicosArray, ["TD"]);
 $idVph = buscarIdBiologicoPorAlias($biologicosArray, ["VPH"]);
-$idHepatitisB = buscarIdBiologicoPorAlias($biologicosArray, ["ANTIHEPATITIS B"]);
+$idHepatitisB = buscarIdBiologicoPorAlias($biologicosArray, [
+    "ANTIHEPATITIS B",
+    "HEPATITIS B"
+]);
 $idSr = buscarIdBiologicoPorAlias($biologicosArray, ["SR DOBLE VIRAL", "SR"]);
 $idVaricela = buscarIdBiologicoPorAlias($biologicosArray, ["VARICELA"]);
 $idHepatitisA = buscarIdBiologicoPorAlias($biologicosArray, ["HEPATITIS A"]);
@@ -496,6 +499,13 @@ if($_SERVER["REQUEST_METHOD"] == "POST") {
 
     $dosisValidada = $resultadoValidar->fetch_assoc();
     $stmtValidar->close();
+    if (
+        $idVph !== null
+        && (int)$id_biologico === $idVph
+        && obtenerRenglonVph($clasificacionVph, $dosisValidada["nombre_dosis"]) === null
+    ) {
+        die("La dosis seleccionada no corresponde al grupo de población VPH.");
+    }
     if ($idHepatitisB !== null && (int)$id_biologico === $idHepatitisB) {
         $esDosisPrimeraSegunda = obtenerRenglonHepatitisB(
             "riesgo",
@@ -546,7 +556,9 @@ if($_SERVER["REQUEST_METHOD"] == "POST") {
         && in_array($clasificacionVph, [
             "rezagados",
             "violencia_9_14",
-            "violencia_15_19"
+            "violencia_15_19",
+            "mujeres_vih",
+            "hombres_vih"
         ], true)
     ) {
         $nacimientoVph = DateTimeImmutable::createFromFormat(
@@ -570,20 +582,14 @@ if($_SERVER["REQUEST_METHOD"] == "POST") {
         $rangosEdadVph = [
             "rezagados" => [12, 16],
             "violencia_9_14" => [9, 14],
-            "violencia_15_19" => [15, 19]
+            "violencia_15_19" => [15, 19],
+            "mujeres_vih" => [11, 49],
+            "hombres_vih" => [11, 49]
         ];
         [$edadMinimaVph, $edadMaximaVph] = $rangosEdadVph[$clasificacionVph];
         if ($edadVph < $edadMinimaVph || $edadVph > $edadMaximaVph) {
             die("La edad del paciente no corresponde al grupo VPH seleccionado.");
         }
-    }
-    if (
-        $idVph !== null
-        && (int)$id_biologico === $idVph
-        && in_array($clasificacionVph, ["mujeres_vih", "hombres_vih"], true)
-        && obtenerRenglonVph($clasificacionVph, $dosisValidada["nombre_dosis"]) === null
-    ) {
-        die("Para los grupos que viven con VIH selecciona la primera, segunda o tercera dosis.");
     }
     if (
         $clasificacionVaricelaHepatitisA !== null
@@ -759,437 +765,169 @@ if($_SERVER["REQUEST_METHOD"] == "POST") {
 
     <title>REGISTRAR APLICACIÓN</title>
     <link rel="stylesheet" href="../css/estilos.css">
+    <link rel="stylesheet" href="css/registrar-vacuna.css">
 
 </head>
 
 <body>
 
-<h1>REGISTRAR APLICACIÓN DE VACUNA</h1>
-
-
-<!-- =====================================================
-     DATOS DEL PACIENTE
-===================================================== -->
-
-<h2>DATOS DEL PACIENTE</h2>
-
-<p>
-
-    <strong>NOMBRE:</strong>
-
-    <?php
-
-    echo htmlspecialchars(
-        $paciente["ap_pat"] . " " .
-        $paciente["ap_mat"] . " " .
-        $paciente["nombres"]
-    );
-
-    ?>
-
-</p>
-
-
-<p>
-
-    <strong>FECHA DE NACIMIENTO:</strong>
-
-    <?php
-
-    echo htmlspecialchars(
-        $paciente["fecha_nacimiento"]
-    );
-
-    ?>
-
-</p>
-
-
-<p>
-
-    <strong>SEXO:</strong>
-
-    <?php
-
-    echo htmlspecialchars(
-        $paciente["sexo"]
-    );
-
-    ?>
-
-</p>
-
-
-<p>
-
-    <strong>CURP:</strong>
-
-    <?php
-
-    echo htmlspecialchars(
-        $paciente["curp"] ?? ""
-    );
-
-    ?>
-
-</p>
-<hr>
-
-
-<!-- =====================================================
-     DATOS DE LA APLICACIÓN
-===================================================== -->
-
-<h2>DATOS DE LA APLICACIÓN</h2>
-
-
-<form method="POST">
-
-
-    <!-- =================================================
-         VACUNA
-    ================================================== -->
-
-    <label>
-
-        <strong>VACUNA:</strong>
-
-    </label>
-
-    <br>
-
-
-    <select
-        name="id_biologico"
-        id="vacuna"
-        required
-    >
-
-        <option value="">
-
-            SELECCIONE UNA VACUNA
-
-        </option>
-
-
-        <?php while($vacuna = $resultadoVacunas->fetch_assoc()): ?>
-
-            <option
-                value="<?php echo $vacuna["id_biologico"]; ?>"
-            >
-
-                <?php
-
-                echo htmlspecialchars(
-                    $vacuna["nombre_biologico"]
-                );
-
-                ?>
-
-            </option>
-
-        <?php endwhile; ?>
-
-    </select>
-
-    <div id="seccion-clasificacion-vph" hidden>
-        <br>
-        <label for="clasificacion-vph">
-            <strong>GRUPO DE POBLACIÓN VPH:</strong>
-        </label>
-        <select
-            name="clasificacion_vph"
-            id="clasificacion-vph"
-            disabled
-        >
-            <option value="">SELECCIONE EL GRUPO</option>
-            <?php foreach ($categoriasVph as $claveVph => $etiquetaVph): ?>
-                <option value="<?php echo htmlspecialchars($claveVph, ENT_QUOTES, "UTF-8"); ?>">
-                    <?php echo htmlspecialchars($etiquetaVph, ENT_QUOTES, "UTF-8"); ?>
-                </option>
-            <?php endforeach; ?>
-        </select>
-        <p>Esta clasificación se utiliza en el paloteo. En aplicaciones vinculadas a expediente queda asociada al registro de vacunación.</p>
-    </div>
-
-    <br>
-    <br>
-
-
-    <!-- =================================================
-         DOSIS
-    ================================================== -->
-
-    <label>
-
-        <strong>DOSIS:</strong>
-
-    </label>
-
-    <br>
-
-
-    <select
-        name="id_esquema_biologico_dosis"
-        id="dosis"
-        required
-        disabled
-    >
-
-        <option value="">
-
-            PRIMERO SELECCIONE UNA VACUNA
-
-        </option>
-
-    </select>
-
-
-    <br>
-    <br>
-
-
-    <!-- =================================================
-         LOTE
-    ================================================== -->
-
-    <label>
-
-        <strong id="etiqueta-lote">LOTE DE LA VACUNA DEL ESQUEMA:</strong>
-
-    </label>
-
-    <br>
-
-
-    <select
-        name="id_lote"
-        id="lote"
-        required
-        disabled
-    >
-
-        <option value="">
-
-            PRIMERO SELECCIONE UNA VACUNA
-
-        </option>
-
-    </select>
-
-
-    <br>
-    <br>
-
-
-    <!-- =================================================
-         FECHA DE APLICACIÓN
-    ================================================== -->
-
-    <label>
-
-        <strong>FECHA DE APLICACIÓN:</strong>
-
-    </label>
-
-    <br>
-
-
-    <input
-        type="date"
-        name="fecha_aplicacion"
-        id="fecha_aplicacion"
-        value="<?php echo date('Y-m-d'); ?>"
-        required
-    >
-
-
-    <br>
-    <br>
-
-
-    <!-- =================================================
-         DOSIS CERO
-    ================================================== -->
-
-    <label>
-
-        <strong>¿DOSIS CERO?</strong>
-
-    </label>
-
-    <br>
-
-
-    <select
-        name="dosis_cero"
-        required
-    >
-
-        <option value="">
-
-            SELECCIONE
-
-        </option>
-
-
-        <option value="0">
-
-            NO
-
-        </option>
-
-
-        <option value="1">
-
-            SÍ
-
-        </option>
-
-    </select>
-
-
-    <br>
-    <br>
-
-    <!-- =================================================
-         REEMPLAZO DE BIOLÓGICO
-    ================================================== -->
-
-    <label for="reemplazo">
-        <strong>¿HABRÁ REEMPLAZO DE BIOLÓGICO?</strong>
-    </label>
-
-    <select name="reemplazo" id="reemplazo" required>
-        <option value="">SELECCIONE</option>
-        <option value="0">NO</option>
-        <option value="1">SÍ</option>
-    </select>
-
-    <div id="datos-reemplazo" hidden>
-        <label for="biologico-reemplazo">
-            <strong>BIOLÓGICO DE REEMPLAZO:</strong>
-        </label>
-        <select
-            name="id_biologico_reemplazo"
-            id="biologico-reemplazo"
-            disabled
-        >
-            <option value="">PRIMERO SELECCIONE LA VACUNA DEL ESQUEMA</option>
-        </select>
-
-        <label for="motivo-reemplazo">
-            <strong>MOTIVO DEL REEMPLAZO:</strong>
-        </label>
-        <textarea
-            name="motivo_reemplazo"
-            id="motivo-reemplazo"
-            rows="3"
-            maxlength="250"
-            disabled
-        ></textarea>
-    </div>
-
-    <div id="seccion-clasificacion-hepatitis-b" hidden>
-        <br>
-        <label for="clasificacion-hepatitis-b">
-            <strong>CLASIFICACIÓN DE HEPATITIS B:</strong>
-        </label>
-        <select
-            name="clasificacion_hepatitis_b"
-            id="clasificacion-hepatitis-b"
-            disabled
-        >
-            <option value="">SELECCIONE</option>
-            <option value="sin_antecedente">Mayores de 11 años sin antecedente vacunal</option>
-            <option value="riesgo">Población en riesgo</option>
-        </select>
-        <p>Personal de salud se clasifica automáticamente con el dato del expediente. Recién nacidos de 0 a 7 días con dosis única también se clasifican automáticamente.</p>
-    </div>
-
-    <div id="seccion-clasificacion-sr" hidden>
-        <br>
-        <label for="clasificacion-sr">
-            <strong>¿LA PERSONA PERTENECE AL PERSONAL EDUCATIVO?</strong>
-        </label>
-        <select
-            name="clasificacion_sr"
-            id="clasificacion-sr"
-            disabled
-        >
-            <option value="">SELECCIONE</option>
-            <option value="personal_educativo">SÍ</option>
-            <option value="otro">NO</option>
-        </select>
-        <p>Este dato se utiliza para clasificar la aplicación de SR en el paloteo.</p>
-    </div>
-
-    <div id="seccion-clasificacion-varicela-hepatitis-a" hidden>
-        <br>
-        <label for="clasificacion-varicela-hepatitis-a">
-            <strong>CLASIFICACIÓN DE LA APLICACIÓN:</strong>
-        </label>
-        <select
-            name="clasificacion_varicela_hepatitis_a"
-            id="clasificacion-varicela-hepatitis-a"
-            disabled
-        >
-            <option value="">SELECCIONE</option>
-        </select>
-        <p>Selecciona si corresponde al esquema regular, a un rezago o a población en riesgo. La edad se validará con el expediente.</p>
-    </div>
-
-    <br>
-    <br>
-
-
-    <!-- =================================================
-         OBSERVACIONES
-    ================================================== -->
-
-    <label>
-
-        <strong>OBSERVACIONES:</strong>
-
-    </label>
-
-    <br>
-
-
-    <textarea
-        name="observaciones"
-        rows="5"
-        cols="50"
-        maxlength="500"
-    ></textarea>
-
-
-    <br>
-    <br>
-
-
-    <button type="submit">
-
-        GUARDAR APLICACIÓN
-
-    </button>
-
-
-</form>
-
-
-<br>
-
-
-<a href="index.php">
-
-    <button type="button">
-
-        REGRESAR
-
-    </button>
-
-</a>
+<main class="pagina-vacunacion">
+    <header class="encabezado-vacunacion">
+        <span class="etiqueta-vacunacion">REGISTRO DE SALUD</span>
+        <h1>Registrar aplicación de vacuna</h1>
+        <p>Completa los datos de la aplicación para guardar el registro en el expediente.</p>
+    </header>
+
+    <section class="tarjeta-vacunacion paciente-vacunacion" aria-labelledby="titulo-paciente">
+        <div class="titulo-seccion-vacunacion">
+            <span class="indicador-seccion">01</span>
+            <div>
+                <h2 id="titulo-paciente">Datos del paciente</h2>
+                <p>Verifica la información antes de continuar.</p>
+            </div>
+        </div>
+
+        <div class="datos-paciente">
+            <div class="dato-paciente dato-paciente--nombre">
+                <span>Nombre completo</span>
+                <strong><?php echo htmlspecialchars($paciente["ap_pat"] . " " . $paciente["ap_mat"] . " " . $paciente["nombres"]); ?></strong>
+            </div>
+            <div class="dato-paciente">
+                <span>Fecha de nacimiento</span>
+                <strong><?php echo htmlspecialchars($paciente["fecha_nacimiento"]); ?></strong>
+            </div>
+            <div class="dato-paciente">
+                <span>Sexo</span>
+                <strong><?php echo htmlspecialchars($paciente["sexo"]); ?></strong>
+            </div>
+            <div class="dato-paciente">
+                <span>CURP</span>
+                <strong><?php echo htmlspecialchars($paciente["curp"] ?? ""); ?></strong>
+            </div>
+        </div>
+    </section>
+
+    <section class="tarjeta-vacunacion aplicacion-vacunacion" aria-labelledby="titulo-aplicacion">
+        <div class="titulo-seccion-vacunacion">
+            <span class="indicador-seccion">02</span>
+            <div>
+                <h2 id="titulo-aplicacion">Datos de la aplicación</h2>
+                <p>Los campos marcados son necesarios para registrar la dosis.</p>
+            </div>
+        </div>
+
+        <form method="POST" class="formulario-vacunacion">
+            <div class="campo-vacuna campo-vacuna--destacado">
+                <label for="vacuna">Vacuna</label>
+                <select name="id_biologico" id="vacuna" required>
+                    <option value="">SELECCIONE UNA VACUNA</option>
+                    <?php while($vacuna = $resultadoVacunas->fetch_assoc()): ?>
+                        <option value="<?php echo $vacuna["id_biologico"]; ?>">
+                            <?php echo htmlspecialchars($vacuna["nombre_biologico"]); ?>
+                        </option>
+                    <?php endwhile; ?>
+                </select>
+            </div>
+
+            <div id="seccion-clasificacion-vph" class="campo-vacuna bloque-condicional" hidden>
+                <label for="clasificacion-vph">Grupo de población VPH</label>
+                <select name="clasificacion_vph" id="clasificacion-vph" disabled>
+                    <option value="">SELECCIONE EL GRUPO</option>
+                    <?php foreach ($categoriasVph as $claveVph => $etiquetaVph): ?>
+                        <option value="<?php echo htmlspecialchars($claveVph, ENT_QUOTES, "UTF-8"); ?>">
+                            <?php echo htmlspecialchars($etiquetaVph, ENT_QUOTES, "UTF-8"); ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+                <p>Esta clasificación se utiliza en el paloteo. En aplicaciones vinculadas a expediente queda asociada al registro de vacunación.</p>
+            </div>
+
+            <div class="campo-vacuna">
+                <label for="dosis">Dosis</label>
+                <select name="id_esquema_biologico_dosis" id="dosis" required disabled>
+                    <option value="">PRIMERO SELECCIONE UNA VACUNA</option>
+                </select>
+            </div>
+
+            <div class="campo-vacuna">
+                <label for="lote"><span id="etiqueta-lote">Lote de la vacuna del esquema</span></label>
+                <select name="id_lote" id="lote" required disabled>
+                    <option value="">PRIMERO SELECCIONE UNA VACUNA</option>
+                </select>
+            </div>
+
+            <div class="campo-vacuna">
+                <label for="fecha_aplicacion">Fecha de aplicación</label>
+                <input type="date" name="fecha_aplicacion" id="fecha_aplicacion" value="<?php echo date('Y-m-d'); ?>" required>
+            </div>
+
+            <div class="campo-vacuna">
+                <label for="dosis_cero">¿Dosis cero?</label>
+                <select name="dosis_cero" id="dosis_cero" required>
+                    <option value="">SELECCIONE</option>
+                    <option value="0">NO</option>
+                    <option value="1">SÍ</option>
+                </select>
+            </div>
+
+            <div class="campo-vacuna">
+                <label for="reemplazo">¿Habrá reemplazo de biológico?</label>
+                <select name="reemplazo" id="reemplazo" required>
+                    <option value="">SELECCIONE</option>
+                    <option value="0">NO</option>
+                    <option value="1">SÍ</option>
+                </select>
+            </div>
+
+            <div id="datos-reemplazo" class="campo-vacuna bloque-condicional" hidden>
+                <label for="biologico-reemplazo">Biológico de reemplazo</label>
+                <select name="id_biologico_reemplazo" id="biologico-reemplazo" disabled>
+                    <option value="">PRIMERO SELECCIONE LA VACUNA DEL ESQUEMA</option>
+                </select>
+                <label for="motivo-reemplazo" class="etiqueta-secundaria">Motivo del reemplazo</label>
+                <textarea name="motivo_reemplazo" id="motivo-reemplazo" rows="3" maxlength="250" disabled></textarea>
+            </div>
+
+            <div id="seccion-clasificacion-hepatitis-b" class="campo-vacuna bloque-condicional" hidden>
+                <label for="clasificacion-hepatitis-b">Clasificación de Hepatitis B</label>
+                <select name="clasificacion_hepatitis_b" id="clasificacion-hepatitis-b" disabled>
+                    <option value="">SELECCIONE</option>
+                    <option value="sin_antecedente">Mayores de 11 años sin antecedente vacunal</option>
+                    <option value="riesgo">Población en riesgo</option>
+                </select>
+                <p>Para primera o segunda dosis, si la persona no está registrada como personal de salud, selecciona si es mayor de 11 años sin antecedente vacunal o si pertenece a población en riesgo. Personal de salud y recién nacidos de 0 a 7 días con dosis única se clasifican automáticamente.</p>
+            </div>
+
+            <div id="seccion-clasificacion-sr" class="campo-vacuna bloque-condicional" hidden>
+                <label for="clasificacion-sr">¿La persona pertenece al personal educativo?</label>
+                <select name="clasificacion_sr" id="clasificacion-sr" disabled>
+                    <option value="">SELECCIONE</option>
+                    <option value="personal_educativo">SÍ</option>
+                    <option value="otro">NO</option>
+                </select>
+                <p>Este dato se utiliza para clasificar la aplicación de SR en el paloteo.</p>
+            </div>
+
+            <div id="seccion-clasificacion-varicela-hepatitis-a" class="campo-vacuna bloque-condicional" hidden>
+                <label for="clasificacion-varicela-hepatitis-a">Clasificación de la aplicación</label>
+                <select name="clasificacion_varicela_hepatitis_a" id="clasificacion-varicela-hepatitis-a" disabled>
+                    <option value="">SELECCIONE</option>
+                </select>
+                <p>Selecciona si corresponde al esquema regular, a un rezago o a población en riesgo. La edad se validará con el expediente.</p>
+            </div>
+
+            <div class="campo-vacuna campo-vacuna--ancho">
+                <label for="observaciones">Observaciones</label>
+                <textarea name="observaciones" id="observaciones" rows="4" maxlength="500"></textarea>
+            </div>
+
+            <div class="acciones-vacunacion campo-vacuna--ancho">
+                <button type="submit">Guardar aplicación</button>
+                <a href="index.php" class="btn btn-secundario">Regresar</a>
+            </div>
+        </form>
+    </section>
+</main>
 
 <script>
     const idBiologicoVph = <?php

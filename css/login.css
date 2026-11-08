@@ -76,8 +76,16 @@
     border-radius: 19px;
     background: #C7EEE2;
     color: #285F70;
-    font-size: 36px;
-    font-weight: bold;
+}
+
+.login-logo svg {
+    width: 40px;
+    height: 40px;
+    fill: none;
+    stroke: currentColor;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-width: 2.5;
 }
 
 .login-encabezado h1 {

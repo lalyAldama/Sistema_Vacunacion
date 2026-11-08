@@ -623,6 +623,7 @@ foreach ($vacunasEsquema as $bio) {
         @media (max-width: 900px) { .pie-notas { grid-template-columns: repeat(2, minmax(0, 1fr)); } .pie-bloque { border-bottom: 1px solid #777; } .pie-firmas { gap: 8px; } }
         @media print { .pie-censo-oficial { break-inside: avoid; } }
 </style>
+<link rel="stylesheet" href="../css/tema_reportes.css">
 </head>
 <body<?php if ($capturaHistorialActiva): ?>
     data-historial-tipo="general"
@@ -659,7 +660,11 @@ foreach ($vacunasEsquema as $bio) {
                 value="<?php echo e($buscar); ?>"
                 placeholder="Buscar por nombre, apellidos o CURP"
             >
-            <button type="submit" class="btn btn-azul">BUSCAR</button>
+            <button type="submit" class="btn btn-azul btn-icono" aria-label="Buscar" title="Buscar">
+                <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="10.8" cy="10.8" r="6.8"></circle><path d="m16 16 5 5"></path>
+                </svg>
+            </button>
         </form>
 
         <div class="filtros-censo">
@@ -675,7 +680,11 @@ foreach ($vacunasEsquema as $bio) {
             <form method="get" action="index.php" class="buscador">
                 <input type="hidden" name="censo" value="<?php echo e($idCenso); ?>">
                 <input id="fecha-historica" type="date" name="historico_fecha" max="<?php echo date("Y-m-d"); ?>" required>
-                <button type="submit" class="btn btn-azul">CONSULTAR HISTORIAL</button>
+                <button type="submit" class="btn btn-azul btn-icono" aria-label="Consultar historial" title="Consultar historial">
+                    <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="10.8" cy="10.8" r="6.8"></circle><path d="m16 16 5 5"></path>
+                    </svg>
+                </button>
             </form>
         </section>
     <?php endif; ?>

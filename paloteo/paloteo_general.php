@@ -86,11 +86,18 @@ $obtenerDosisPaloteo = function ($nombre) {
 
 $mesPredeterminado = (int)date("n");
 $anioPredeterminado = (int)date("Y");
+$modoInformeAnual = defined("INFORME_ANUAL_SOLICITANDO_CONTEOS");
 $origenPeriodo = $_SERVER["REQUEST_METHOD"] === "POST" ? $_POST : $_GET;
 $mes = leerPeriodo($origenPeriodo["mes"] ?? null, 1, 12, $mesPredeterminado);
 $anio = leerPeriodo($origenPeriodo["anio"] ?? null, 2000, 2100, $anioPredeterminado);
-$fechaInicio = new DateTimeImmutable(sprintf("%04d-%02d-01", $anio, $mes));
-$fechaFin = $fechaInicio->modify("+1 month");
+$fechaInicio = new DateTimeImmutable(sprintf(
+    "%04d-%02d-01",
+    $anio,
+    $modoInformeAnual ? 1 : $mes
+));
+$fechaFin = $modoInformeAnual
+    ? new DateTimeImmutable(sprintf("%04d-01-01", $anio + 1))
+    : $fechaInicio->modify("+1 month");
 $diasMes = (int)$fechaInicio->format("t");
 $diasFormato = 31;
 $inicioSql = $fechaInicio->format("Y-m-d");
@@ -135,6 +142,39 @@ $sqlTabla = "CREATE TABLE IF NOT EXISTS PALOTEO_GENERAL (
              ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4";
 if (!$conexion->query($sqlTabla)) {
     die("No fue posible preparar el almacenamiento del paloteo: " . $conexion->error);
+}
+
+$ajustesPorMesAnual = [];
+if ($modoInformeAnual) {
+    $stmtAjustesAnuales = $conexion->prepare(
+        "SELECT mes, datos_json FROM PALOTEO_GENERAL WHERE id_unidad = ? AND anio = ?"
+    );
+    if (!$stmtAjustesAnuales) {
+        die("Error al preparar los ajustes del paloteo anual: " . $conexion->error);
+    }
+    $stmtAjustesAnuales->bind_param("ii", $idUnidad, $anio);
+    if (!$stmtAjustesAnuales->execute()) {
+        die("Error al consultar los ajustes del paloteo anual: " . $stmtAjustesAnuales->error);
+    }
+    $resultadoAjustesAnuales = $stmtAjustesAnuales->get_result();
+    while ($filaAjustesAnuales = $resultadoAjustesAnuales->fetch_assoc()) {
+        $mesAjustesAnuales = (int)$filaAjustesAnuales["mes"];
+        $datosAjustesAnuales = json_decode($filaAjustesAnuales["datos_json"], true);
+        if (
+            $mesAjustesAnuales < 1
+            || $mesAjustesAnuales > 12
+            || !is_array($datosAjustesAnuales)
+            || json_last_error() !== JSON_ERROR_NONE
+        ) {
+            $stmtAjustesAnuales->close();
+            die("Los ajustes guardados del paloteo anual no se pudieron leer.");
+        }
+        $ajustesPorMesAnual[$mesAjustesAnuales] =
+            is_array($datosAjustesAnuales["ajustes"] ?? null)
+                ? $datosAjustesAnuales["ajustes"]
+                : [];
+    }
+    $stmtAjustesAnuales->close();
 }
 
 $mensajeError = "";
@@ -185,46 +225,51 @@ $agregarRenglon = function ($id, $pagina, $biologico, $grupo, $detalle, $aliases
         "dosis" => $dosis,
         "clasificacion" => $clasificacion
     ];
-    $automaticos[$id] = ["dias" => array_fill(1, $diasFormato, 0), "migrantes" => 0];
+    $automaticos[$id] = [
+        "dias" => array_fill(1, $diasFormato, 0),
+        "afromexicano" => 0,
+        "indigenas" => 0,
+        "migrantes" => 0
+    ];
 };
 
 $filasPaginaUno = [
-    ["bcg_24h","BCG","Recién nacido (primeras 24 horas)","Única"],
-    ["bcg_neonato","BCG","Recién nacido (de 2 a 28 días)","Única"],
-    ["bcg_29d_11m","BCG","29 días a 11 meses","Única"],
-    ["bcg_1_4","BCG","1 a 4 años","Única"],
-    ["bcg_5_9","BCG","5 a 13 años","Única"],
-    ["hepb_rn","HEPATITIS B","Única recién nacido (0 a 7 días)",""],
-    ["hepb_mayor11_1","HEPATITIS B","Mayores de 11 años (sin antecedente vacunal)","Primera"],
-    ["hepb_mayor11_2","HEPATITIS B","Mayores de 11 años (sin antecedente vacunal)","Segunda"],
-    ["hepb_riesgo_1","HEPATITIS B","Población en riesgo","Primera"],
-    ["hepb_riesgo_2","HEPATITIS B","Población en riesgo","Segunda"],
-    ["hepb_salud_1","HEPATITIS B","Personal de salud","Primera"],
-    ["hepb_salud_2","HEPATITIS B","Personal de salud","Segunda"],
-    ["hexa_1","HEXAVALENTE ACELULAR DPaT + IPV + Hib + HB","Primera","2 a 11 meses"],
-    ["hexa_2","HEXAVALENTE ACELULAR DPaT + IPV + Hib + HB","Segunda","4 a 11 meses"],
-    ["hexa_3","HEXAVALENTE ACELULAR DPaT + IPV + Hib + HB","Tercera","6 a 11 meses"],
-    ["hexa_ref_18","HEXAVALENTE ACELULAR DPaT + IPV + Hib + HB","Refuerzo","18 a 23 meses"],
-    ["hexa_rescate1","HEXAVALENTE ACELULAR DPaT + IPV + Hib + HB","Completar esquema 1 a 4 años","Primera"],
-    ["hexa_rescate2","HEXAVALENTE ACELULAR DPaT + IPV + Hib + HB","Completar esquema 1 a 4 años","Segunda"],
-    ["hexa_rescate3","HEXAVALENTE ACELULAR DPaT + IPV + Hib + HB","Completar esquema 1 a 4 años","Tercera"],
-    ["hexa_rescate_refuerzo","HEXAVALENTE ACELULAR DPaT + IPV + Hib + HB","Completar esquema 1 a 4 años","Refuerzo"],
+    ["bcg_24h","119 BCG","Recién nacido (primeras 24 horas)","Única"],
+    ["bcg_neonato","119 BCG","Recién nacido (de 2 a 28 días)","Única"],
+    ["bcg_29d_11m","119 BCG","29 días a 11 meses","Única"],
+    ["bcg_1_4","119 BCG","1 a 4 años","Única"],
+    ["bcg_5_9","119 BCG","5 a 13 años","Única"],
+    ["hepb_rn","121 HEPATITIS B","Única recién nacido (0 a 7 días)",""],
+    ["hepb_mayor11_1","121 HEPATITIS B","Mayores de 11 años (sin antecedente vacunal)","Primera"],
+    ["hepb_mayor11_2","121 HEPATITIS B","Mayores de 11 años (sin antecedente vacunal)","Segunda"],
+    ["hepb_riesgo_1","121 HEPATITIS B","Población en riesgo","Primera"],
+    ["hepb_riesgo_2","121 HEPATITIS B","Población en riesgo","Segunda"],
+    ["hepb_salud_1","121 HEPATITIS B","Personal de salud","Primera"],
+    ["hepb_salud_2","121 HEPATITIS B","Personal de salud","Segunda"],
+    ["hexa_1","275 HEXAVALENTE ACELULAR DPaT + IPV + Hib + HB","Primera","2 a 11 meses"],
+    ["hexa_2","275 HEXAVALENTE ACELULAR DPaT + IPV + Hib + HB","Segunda","4 a 11 meses"],
+    ["hexa_3","275 HEXAVALENTE ACELULAR DPaT + IPV + Hib + HB","Tercera","6 a 11 meses"],
+    ["hexa_ref_18","275 HEXAVALENTE ACELULAR DPaT + IPV + Hib + HB","Refuerzo","18 a 23 meses"],
+    ["hexa_rescate1","275 HEXAVALENTE ACELULAR DPaT + IPV + Hib + HB","Completar esquema 1 a 4 años","Primera"],
+    ["hexa_rescate2","275 HEXAVALENTE ACELULAR DPaT + IPV + Hib + HB","Completar esquema 1 a 4 años","Segunda"],
+    ["hexa_rescate3","275 HEXAVALENTE ACELULAR DPaT + IPV + Hib + HB","Completar esquema 1 a 4 años","Tercera"],
+    ["hexa_rescate_refuerzo","275 HEXAVALENTE ACELULAR DPaT + IPV + Hib + HB","Completar esquema 1 a 4 años","Refuerzo"],
     ["hexa_4","Hexavalente acelular DPaT+IPV+Hib+HB/DPT","Única","4 años"],
     ["dpt_4_6","Hexavalente acelular DPaT+IPV+Hib+HB/DPT","Para iniciar o completar esquema","5 a 6 años única"],
-    ["dpt_unica_4","DPT","Única","4 años"],
-    ["dpt_rescate_5_6","DPT","Para iniciar o completar esquema","5 a 6 años única"],
+    ["dpt_unica_4","123 DPT","Única","4 años"],
+    ["dpt_rescate_5_6","123 DPT","Para iniciar o completar esquema","5 a 6 años única"],
     ["rota_1","274 Rotavirus RV1","Primera","2 meses"],
     ["rota_2","274 Rotavirus RV1","Segunda","4 meses"],
     ["rota_rescate1","274 Rotavirus RV1","Para iniciar o completar esquema","Primera 3 a 7 meses"],
     ["rota_rescate2","274 Rotavirus RV1","Para iniciar o completar esquema","Segunda 5 a 7 meses"],
-    ["neumo_1","NEUMOCÓCICA CONJUGADA (13 VALENTE)","Primera","2 a 11 meses"],
-    ["neumo_2","NEUMOCÓCICA CONJUGADA (13 VALENTE)","Segunda","4 a 11 meses"],
-    ["neumo_3","NEUMOCÓCICA CONJUGADA (13 VALENTE)","Tercera","12 a 23 meses"],
-    ["neumo_rescate1","NEUMOCÓCICA CONJUGADA (13 VALENTE)","Completar esquema 1 a 4 años","Primera"],
-    ["neumo_rescate2","NEUMOCÓCICA CONJUGADA (13 VALENTE)","Completar esquema 1 a 4 años","Segunda"],
-    ["neumo_rescate3","NEUMOCÓCICA CONJUGADA (13 VALENTE)","Completar esquema 1 a 4 años","Tercera"],
-    ["neumo_unica60","NEUMOCÓCICA CONJUGADA (13 VALENTE)","60 años y más sin factores de riesgo","Única"],
-    ["neumo_riesgo60","NEUMOCÓCICA CONJUGADA (13 VALENTE)","60 años y más con factores de riesgo","Única"],
+    ["neumo_1","125 NEUMOCÓCICA CONJUGADA (13 VALENTE)","Primera","2 a 11 meses"],
+    ["neumo_2","125 NEUMOCÓCICA CONJUGADA (13 VALENTE)","Segunda","4 a 11 meses"],
+    ["neumo_3","125 NEUMOCÓCICA CONJUGADA (13 VALENTE)","Tercera","12 a 23 meses"],
+    ["neumo_rescate1","125 NEUMOCÓCICA CONJUGADA (13 VALENTE)","Completar esquema 1 a 4 años","Primera"],
+    ["neumo_rescate2","125 NEUMOCÓCICA CONJUGADA (13 VALENTE)","Completar esquema 1 a 4 años","Segunda"],
+    ["neumo_rescate3","125 NEUMOCÓCICA CONJUGADA (13 VALENTE)","Completar esquema 1 a 4 años","Tercera"],
+    ["neumo_unica60","125 NEUMOCÓCICA CONJUGADA (13 VALENTE)","60 años y más sin factores de riesgo","Única"],
+    ["neumo_riesgo60","125 NEUMOCÓCICA CONJUGADA (13 VALENTE)","60 años y más con factores de riesgo","Única"],
     ["neumo20_1","354 Neumocócica conjugada (20 valente)","Primera","2 a 11 meses"],
     ["neumo20_2","354 Neumocócica conjugada (20 valente)","Segunda","4 a 11 meses"],
     ["neumo20_3","354 Neumocócica conjugada (20 valente)","Tercera","12 a 23 meses"],
@@ -454,6 +499,7 @@ $prefijosFamilia = [
 ];
 
 $sqlAplicaciones = "SELECT
+                        av.id_aplicacion_vacuna,
                         av.fecha_aplicacion,
                         av.clasificacion_vph,
                         av.clasificacion_hepatitis_b,
@@ -466,6 +512,7 @@ $sqlAplicaciones = "SELECT
                         p.personal_salud,
                         p.jornalero_agricola,
                         p.estatus_migratorio,
+                        p.poblacion_indigena_afromexicana,
                         d.nombre_dosis,
                         b.nombre_biologico AS nombre_biologico_indicado,
                         COALESCE(b_aplicado.nombre_biologico, b.nombre_biologico) AS nombre_biologico,
@@ -499,7 +546,32 @@ if (!$stmtAplicaciones->execute()) {
 }
 $resultadoAplicaciones = $stmtAplicaciones->get_result();
 $aplicacionesSinClasificar = 0;
-$registrarConteoPaloteo = function ($idRenglon, $fecha, $esMigrante) use (&$automaticos) {
+$aplicacionesSinClasificarPorFamilia = [];
+$aplicacionesSinClasificarDetalle = [];
+$aplicacionSinClasificarActual = [];
+$marcarAplicacionSinClasificar = function ($familia, $motivo = "") use (
+    &$aplicacionesSinClasificar,
+    &$aplicacionesSinClasificarPorFamilia,
+    &$aplicacionesSinClasificarDetalle,
+    &$aplicacionSinClasificarActual
+) {
+    $aplicacionesSinClasificar++;
+    $aplicacionesSinClasificarPorFamilia[$familia] =
+        ($aplicacionesSinClasificarPorFamilia[$familia] ?? 0) + 1;
+    $aplicacionesSinClasificarDetalle[] = array_merge(
+        $aplicacionSinClasificarActual,
+        ["familia" => $familia, "motivo" => $motivo]
+    );
+};
+$conteosPorMesAnual = [];
+$registrarConteoPaloteo = function ($idRenglon, $fecha, $esMigrante, $esPoblacionIndigenaAfromexicana = false) use (&$automaticos, &$conteosPorMesAnual) {
+    $mesAplicacion = (int)$fecha->format("n");
+    $conteosPorMesAnual[$idRenglon][$mesAplicacion] =
+        ($conteosPorMesAnual[$idRenglon][$mesAplicacion] ?? 0) + 1;
+    if ($esPoblacionIndigenaAfromexicana) {
+        $automaticos[$idRenglon]["afromexicano"]++;
+        $automaticos[$idRenglon]["indigenas"]++;
+    }
     if ($esMigrante) {
         $automaticos[$idRenglon]["migrantes"]++;
     } else {
@@ -515,10 +587,31 @@ while ($aplicacion = $resultadoAplicaciones->fetch_assoc()) {
     }
 
     $nombreBiologico = normalizarEtiquetaPaloteo($aplicacion["nombre_biologico"]);
+    $edadPaciente = $fechaNacimiento->diff($fechaAplicacion);
+    $aplicacionSinClasificarActual = [
+        "id" => (int)$aplicacion["id_aplicacion_vacuna"],
+        "fecha" => $fechaAplicacion->format("Y-m-d"),
+        "biologico" => (string)$aplicacion["nombre_biologico"],
+        "biologicoIndicado" => (string)$aplicacion["nombre_biologico_indicado"],
+        "dosis" => (string)$aplicacion["nombre_dosis"],
+        "edad" => $edadPaciente->y . " año(s), " . $edadPaciente->m . " mes(es)",
+        "clasificaciones" => [
+            "hepatitis_b" => (string)($aplicacion["clasificacion_hepatitis_b"] ?? ""),
+            "sr" => (string)($aplicacion["clasificacion_sr"] ?? ""),
+            "vph" => (string)($aplicacion["clasificacion_vph"] ?? ""),
+            "varicela_hepatitis_a" => (string)($aplicacion["clasificacion_varicela_hepatitis_a"] ?? "")
+        ],
+        "clasificacionHepatitisB" => (string)($aplicacion["clasificacion_hepatitis_b"] ?? ""),
+        "clasificacionVph" => (string)($aplicacion["clasificacion_vph"] ?? ""),
+        "personalSalud" => (int)$aplicacion["personal_salud"] === 1,
+        "embarazo" => (int)$aplicacion["embarazo"] === 1,
+        "personal_salud" => (int)$aplicacion["personal_salud"] === 1,
+        "jornalero_agricola" => (int)$aplicacion["jornalero_agricola"] === 1
+    ];
     $familia = null;
     foreach ([
         "bcg" => ["bcg"],
-        "hepatitisb" => ["antihepatitisb", "hepatitisb"],
+        "hepatitisb" => ["antihepatitisb", "antihepatitis b", "hepatitisb"],
         "hexavalente" => ["hexavalente"],
         "dpt" => ["dpt"],
         "rotavirus" => ["antirotavirus", "rotavirus"],
@@ -548,11 +641,18 @@ while ($aplicacion = $resultadoAplicaciones->fetch_assoc()) {
         }
     }
     if ($familia === null) {
-        $aplicacionesSinClasificar++;
+        $biologicoCompacto = preg_replace('/[^a-z0-9]/', '', $nombreBiologico);
+        $familiaSinClasificar = str_contains($biologicoCompacto, "23valente")
+            ? "neumococo23"
+            : (str_contains($nombreBiologico, "influenza") ? "influenza" : "sin_clasificar");
+        $marcarAplicacionSinClasificar(
+            $familiaSinClasificar,
+            "El nombre del biológico no coincide con los alias del paloteo."
+        );
         continue;
     }
 
-    $diferenciaEdad = $fechaNacimiento->diff($fechaAplicacion);
+    $diferenciaEdad = $edadPaciente;
     $edadMeses = ($diferenciaEdad->y * 12) + $diferenciaEdad->m;
     $fechaUltimaMenstruacion = !empty($aplicacion["fecha_ultima_menstruacion"])
         ? DateTimeImmutable::createFromFormat("!Y-m-d", (string)$aplicacion["fecha_ultima_menstruacion"])
@@ -573,7 +673,8 @@ while ($aplicacion = $resultadoAplicaciones->fetch_assoc()) {
             $registrarConteoPaloteo(
                 "hepb_rn",
                 $fechaAplicacion,
-                $estatusMigratorio !== "" && $estatusMigratorio !== "no aplica"
+                $estatusMigratorio !== "" && $estatusMigratorio !== "no aplica",
+                (int)$aplicacion["poblacion_indigena_afromexicana"] === 1
             );
             continue;
         }
@@ -584,14 +685,15 @@ while ($aplicacion = $resultadoAplicaciones->fetch_assoc()) {
                 (string)$aplicacion["nombre_dosis"]
             );
             if ($filaHepatitisB === null || !isset($automaticos[$filaHepatitisB])) {
-                $aplicacionesSinClasificar++;
+                $marcarAplicacionSinClasificar("hepatitisb");
                 continue;
             }
             $estatusMigratorio = normalizarEtiquetaPaloteo($aplicacion["estatus_migratorio"]);
             $registrarConteoPaloteo(
                 $filaHepatitisB,
                 $fechaAplicacion,
-                $estatusMigratorio !== "" && $estatusMigratorio !== "no aplica"
+                $estatusMigratorio !== "" && $estatusMigratorio !== "no aplica",
+                (int)$aplicacion["poblacion_indigena_afromexicana"] === 1
             );
             continue;
         }
@@ -602,7 +704,8 @@ while ($aplicacion = $resultadoAplicaciones->fetch_assoc()) {
         $registrarConteoPaloteo(
             "sr_educativo",
             $fechaAplicacion,
-            $estatusMigratorio !== "" && $estatusMigratorio !== "no aplica"
+            $estatusMigratorio !== "" && $estatusMigratorio !== "no aplica",
+            (int)$aplicacion["poblacion_indigena_afromexicana"] === 1
         );
         continue;
     }
@@ -614,14 +717,15 @@ while ($aplicacion = $resultadoAplicaciones->fetch_assoc()) {
             $edadMeses
         );
         if ($filaVph === null || !isset($automaticos[$filaVph])) {
-            $aplicacionesSinClasificar++;
+            $marcarAplicacionSinClasificar("vph");
             continue;
         }
         $estatusMigratorio = normalizarEtiquetaPaloteo($aplicacion["estatus_migratorio"]);
         $registrarConteoPaloteo(
             $filaVph,
             $fechaAplicacion,
-            $estatusMigratorio !== "" && $estatusMigratorio !== "no aplica"
+            $estatusMigratorio !== "" && $estatusMigratorio !== "no aplica",
+            (int)$aplicacion["poblacion_indigena_afromexicana"] === 1
         );
         continue;
     }
@@ -632,14 +736,15 @@ while ($aplicacion = $resultadoAplicaciones->fetch_assoc()) {
             "rezago" => "varicela_rezago_2_4"
         ][$categoriaVacunaEdad] ?? null;
         if ($filaVaricela === null) {
-            $aplicacionesSinClasificar++;
+            $marcarAplicacionSinClasificar("varicela");
             continue;
         }
         $estatusMigratorio = normalizarEtiquetaPaloteo($aplicacion["estatus_migratorio"]);
         $registrarConteoPaloteo(
             $filaVaricela,
             $fechaAplicacion,
-            $estatusMigratorio !== "" && $estatusMigratorio !== "no aplica"
+            $estatusMigratorio !== "" && $estatusMigratorio !== "no aplica",
+            (int)$aplicacion["poblacion_indigena_afromexicana"] === 1
         );
         continue;
     }
@@ -651,14 +756,15 @@ while ($aplicacion = $resultadoAplicaciones->fetch_assoc()) {
             "riesgo" => "hepa_riesgo"
         ][$categoriaVacunaEdad] ?? null;
         if ($filaHepatitisA === null) {
-            $aplicacionesSinClasificar++;
+            $marcarAplicacionSinClasificar("hepatitisa");
             continue;
         }
         $estatusMigratorio = normalizarEtiquetaPaloteo($aplicacion["estatus_migratorio"]);
         $registrarConteoPaloteo(
             $filaHepatitisA,
             $fechaAplicacion,
-            $estatusMigratorio !== "" && $estatusMigratorio !== "no aplica"
+            $estatusMigratorio !== "" && $estatusMigratorio !== "no aplica",
+            (int)$aplicacion["poblacion_indigena_afromexicana"] === 1
         );
         continue;
     }
@@ -1053,7 +1159,33 @@ while ($aplicacion = $resultadoAplicaciones->fetch_assoc()) {
     }
 
     if ($filaEncontrada === null) {
-        $aplicacionesSinClasificar++;
+        $biologicoCompacto = preg_replace('/[^a-z0-9]/', '', $nombreBiologico);
+        $familiaSinClasificar = str_contains($biologicoCompacto, "23valente")
+            ? "neumococo23"
+            : $familia;
+        $motivoSinClasificar = "No se encontró un renglón compatible con la dosis o el grupo.";
+        if (
+            $familia === "hepatitisb"
+            && !$aplicacionSinClasificarActual["personalSalud"]
+            && $aplicacionSinClasificarActual["clasificacionHepatitisB"] === ""
+            && in_array($codigoDosis, ["primera", "segunda"], true)
+        ) {
+            $motivoSinClasificar =
+                "Falta indicar si corresponde a mayores de 11 años sin antecedente vacunal o a población en riesgo; verifica el expediente.";
+        } elseif (
+            $familia === "vph"
+            && $aplicacionSinClasificarActual["clasificacionVph"] === ""
+        ) {
+            $motivoSinClasificar =
+                "Falta el grupo de población VPH. A los 22 años, los renglones disponibles corresponden a personas de 11 a 49 años que viven con VIH.";
+        } elseif (
+            $esReemplazoDptHexavalente
+            && $fechaNacimiento->diff($fechaAplicacion)->y > 6
+        ) {
+            $motivoSinClasificar =
+                "El registro indica DPT aplicada en lugar de Hexavalente a los 8 años; el formato sólo tiene renglones para este reemplazo entre 5 y 6 años. Verifica la vacuna y el esquema.";
+        }
+        $marcarAplicacionSinClasificar($familiaSinClasificar, $motivoSinClasificar);
         continue;
     }
 
@@ -1061,7 +1193,8 @@ while ($aplicacion = $resultadoAplicaciones->fetch_assoc()) {
     $registrarConteoPaloteo(
         $filaEncontrada,
         $fechaAplicacion,
-        $estatusMigratorio !== "" && $estatusMigratorio !== "no aplica"
+        $estatusMigratorio !== "" && $estatusMigratorio !== "no aplica",
+        (int)$aplicacion["poblacion_indigena_afromexicana"] === 1
     );
 }
 $stmtAplicaciones->close();
@@ -1101,12 +1234,43 @@ while ($aplicacionVph = $resultadoVphAnonimas->fetch_assoc()) {
         (string)$aplicacionVph["nombre_dosis"]
     );
     if ($filaVph === null || !isset($automaticos[$filaVph])) {
-        $aplicacionesSinClasificar++;
+        $marcarAplicacionSinClasificar("vph");
         continue;
     }
     $registrarConteoPaloteo($filaVph, $fechaVph, (int)$aplicacionVph["es_migrante"] === 1);
 }
 $stmtVphAnonimas->close();
+
+if ($modoInformeAnual) {
+    return [
+        "renglones" => $renglones,
+        "conteosPorMes" => $conteosPorMesAnual,
+        "ajustesPorMes" => $ajustesPorMesAnual,
+        "anio" => $anio,
+        "nombreUnidad" => $nombreUnidad,
+        "nombreResponsable" => $nombreResponsable,
+        "idUnidad" => $idUnidad,
+        "aplicacionesSinClasificar" => $aplicacionesSinClasificar,
+        "aplicacionesSinClasificarPorFamilia" => $aplicacionesSinClasificarPorFamilia,
+        "aplicacionesSinClasificarDetalle" => $aplicacionesSinClasificarDetalle
+    ];
+}
+
+if (defined("INFORME_MENSUAL_SOLICITANDO_CONTEOS")) {
+    return [
+        "renglones" => $renglones,
+        "automaticos" => $automaticos,
+        "ajustes" => $ajustes,
+        "encabezado" => $encabezado,
+        "nombreUnidad" => $nombreUnidad,
+        "nombreResponsable" => $nombreResponsable,
+        "aplicacionesSinClasificar" => $aplicacionesSinClasificar,
+        "aplicacionesSinClasificarNoExcluidas" => $aplicacionesSinClasificar
+            - ($aplicacionesSinClasificarPorFamilia["influenza"] ?? 0)
+            - ($aplicacionesSinClasificarPorFamilia["neumococo23"] ?? 0),
+        "diasMes" => $diasMes
+    ];
+}
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
     $ajustesRecibidos = $_POST["ajustes"] ?? [];
@@ -1122,7 +1286,12 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 break;
             }
 
-            $ajustesValidados[$clave] = ["dias" => [], "migrantes" => 0];
+            $ajustesValidados[$clave] = [
+                "dias" => [],
+                "afromexicano" => 0,
+                "indigenas" => 0,
+                "migrantes" => 0
+            ];
             $diasRecibidos = $valores["dias"] ?? [];
             if (!is_array($diasRecibidos)) {
                 $mensajeError = "Los ajustes diarios recibidos no son válidos.";
@@ -1155,7 +1324,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 }
             }
 
-            foreach (["migrantes"] as $campo) {
+            foreach (["afromexicano", "indigenas", "migrantes"] as $campo) {
                 $valor = $valores[$campo] ?? "0";
                 if ((!is_string($valor) && !is_int($valor)) || !preg_match('/^-?\d{1,6}$/', (string)$valor)) {
                     $mensajeError = "Los ajustes de totales deben ser números enteros entre -999999 y 999999.";
@@ -1269,7 +1438,7 @@ $guardado = ($_GET["guardado"] ?? "") === "1";
         .barra { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; padding: 16px; margin-bottom: 18px; }
         .barra label { display: grid; gap: 5px; font-size: 13px; font-weight: 700; }
         select, input, button { font: inherit; }
-        .barra select { min-width: 150px; padding: 9px; border: 1px solid #aebdc7; border-radius: 5px; }
+        .barra select { width: 135px; min-width: 0; padding: 9px; border: 1px solid #aebdc7; border-radius: 5px; }
         button, .boton {
             border: 0;
             border-radius: 5px;
@@ -1278,6 +1447,9 @@ $guardado = ($_GET["guardado"] ?? "") === "1";
             text-decoration: none;
             cursor: pointer;
         }
+        .boton-guardar { display: inline-flex; align-items: center; justify-content: center; padding: 8px; }
+        .boton-icono { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; padding: 8px; }
+        .boton-icono svg { width: 20px; height: 20px; }
         .primario { background: #176b54; color: #fff; }
         .secundario { background: #e7eef2; color: #18384c; }
         .estado { width: 100%; margin: 0; color: #176b54; font-weight: 700; }
@@ -1350,9 +1522,17 @@ $guardado = ($_GET["guardado"] ?? "") === "1";
             tr { break-inside: avoid; }
         }
     </style>
+    <link rel="stylesheet" href="../css/tema_reportes.css?v=20261105-3">
 </head>
 <body>
 <main class="pagina">
+    <header class="encabezado-reporte">
+        <div class="encabezado-reporte__contenido">
+            <span class="encabezado-reporte__seccion">Paloteo de vacunación</span>
+            <h1>Registro de aplicación de biológicos</h1>
+            <p>Paloteo general · <?php echo escapar($nombreMeses[$mes] . " " . $anio); ?></p>
+        </div>
+    </header>
     <form class="barra" method="get" action="paloteo_general.php">
         <label for="mes">Mes
             <select name="mes" id="mes">
@@ -1372,9 +1552,24 @@ $guardado = ($_GET["guardado"] ?? "") === "1";
                 <?php endfor; ?>
             </select>
         </label>
-        <button class="primario" type="submit">Consultar periodo</button>
-        <button class="secundario" type="button" onclick="window.print()">Imprimir / Guardar PDF</button>
-        <a class="boton secundario" href="../menu.php">Regresar al menú</a>
+        <button class="primario boton-icono" type="submit" aria-label="Consultar periodo" title="Consultar periodo">
+            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="10.8" cy="10.8" r="6.8"></circle><path d="m16 16 5 5"></path>
+            </svg>
+        </button>
+        <button class="primario boton-guardar" type="submit" form="form-paloteo"
+                aria-label="Guardar paloteo" title="Guardar paloteo">
+            <svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none"
+                 stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z"></path>
+                <path d="M17 21v-8H7v8M7 3v5h8"></path>
+            </svg>
+        </button>
+        <button class="secundario boton-icono" type="button" onclick="window.print()" aria-label="Imprimir o guardar como PDF" title="Imprimir o guardar como PDF">
+            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M7 8V3h10v5M7 17H5a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2"></path><path d="M7 14h10v7H7zM18 11h.01"></path>
+            </svg>
+        </button>
         <?php if ($guardado): ?>
             <p class="estado" role="status">Paloteo guardado correctamente para <?php echo escapar($nombreMeses[$mes] . " " . $anio); ?>.</p>
         <?php endif; ?>
@@ -1407,14 +1602,6 @@ $guardado = ($_GET["guardado"] ?? "") === "1";
                 </label>
             </div>
         </header>
-
-        <p class="nota">
-            El formato conserva los grupos y subgrupos de las dos hojas oficiales. Cada columna numerada es el día correspondiente del mes.
-            Los registros de pacientes migrantes se contabilizan aparte y no se suman en las columnas diarias.
-            Las aplicaciones VPH se agrupan con la categoría indicada al registrarlas, incluidas las aplicaciones sin expediente.
-            BCG se clasifica como primeras 24 horas cuando la fecha de aplicación coincide con la fecha de nacimiento; es una aproximación porque no se registra la hora de nacimiento.
-            Los datos que el sistema no tiene para decidir una clasificación quedan disponibles para captura manual.
-        </p>
         <?php if ($aplicacionesSinClasificar > 0): ?>
             <p class="error" role="status"><?php echo $aplicacionesSinClasificar; ?> aplicación(es) no se pudieron ubicar automáticamente en los grupos oficiales; verifica el grupo correspondiente y captura el ajuste manual.</p>
         <?php endif; ?>
@@ -1426,6 +1613,8 @@ $guardado = ($_GET["guardado"] ?? "") === "1";
                 <?php
                 $totalesPagina = array_fill(1, $diasFormato, 0);
                 $totalNoMigrantesPagina = 0;
+                $totalAfromexicanoPagina = 0;
+                $totalIndigenasPagina = 0;
                 $totalMigrantesPagina = 0;
                 foreach ($renglonesPorPagina[$numeroPagina] as $grupos) {
                     foreach ($grupos as $clavesGrupo) {
@@ -1439,9 +1628,14 @@ $guardado = ($_GET["guardado"] ?? "") === "1";
                             }
                             $totalMigrantesPagina += $automaticos[$claveRenglon]["migrantes"]
                                 + ajusteGuardado($ajustes, $claveRenglon, "migrantes");
+                            $totalAfromexicanoPagina += $automaticos[$claveRenglon]["afromexicano"]
+                                + ajusteGuardado($ajustes, $claveRenglon, "afromexicano");
+                            $totalIndigenasPagina += $automaticos[$claveRenglon]["indigenas"]
+                                + ajusteGuardado($ajustes, $claveRenglon, "indigenas");
                         }
                     }
                 }
+                $totalDosisPagina = $totalNoMigrantesPagina + $totalMigrantesPagina;
                 ?>
                 <section class="formato-pagina">
                     <h2 class="titulo-pagina">REGISTRO DE APLICACIÓN DE BIOLÓGICOS</h2>
@@ -1450,12 +1644,13 @@ $guardado = ($_GET["guardado"] ?? "") === "1";
                             <thead>
                             <tr>
                                 <th class="biologico" rowspan="2">BIOLÓGICO</th>
-                                <th class="grupo" rowspan="2">DOSIS / GRUPO POBLACIONAL</th>
+                                <th class="grupo" rowspan="2">Variable</th>
                                 <th class="detalle" rowspan="2">ESQUEMA / EDAD</th>
-                                <th colspan="<?php echo $diasFormato; ?>">REGISTRO DE DOSIS APLICADAS — DÍA DE LA LOCALIDAD</th>
-                                <th class="total" rowspan="2">TOTAL<br>(NO INCLUYE MIGRANTES)</th>
-                                <th class="total" rowspan="2">MIGRANTES</th>
-                                <th class="total" rowspan="2">TOTAL<br>(INCLUYE MIGRANTES)</th>
+                                <th colspan="<?php echo $diasFormato; ?>">Día</th>
+                                <th class="total" rowspan="2">TOTAL DE DOSIS</th>
+                                <th class="total" rowspan="2">A AFROMEXICANO</th>
+                                <th class="total" rowspan="2">A INDÍGENAS</th>
+                                <th class="total" rowspan="2">A MIGRANTES</th>
                             </tr>
                             <tr>
                                 <?php for ($dia = 1; $dia <= $diasFormato; $dia++): ?>
@@ -1485,6 +1680,10 @@ $guardado = ($_GET["guardado"] ?? "") === "1";
                                         }
                                         $migrantesRenglon = $automaticos[$clave]["migrantes"]
                                             + ajusteGuardado($ajustes, $clave, "migrantes");
+                                        $afromexicanoRenglon = $automaticos[$clave]["afromexicano"]
+                                            + ajusteGuardado($ajustes, $clave, "afromexicano");
+                                        $indigenasRenglon = $automaticos[$clave]["indigenas"]
+                                            + ajusteGuardado($ajustes, $clave, "indigenas");
                                         ?>
                                         <tr>
                                             <?php if ($primeraFilaBiologico): ?>
@@ -1518,11 +1717,33 @@ $guardado = ($_GET["guardado"] ?? "") === "1";
                                                     </td>
                                                 <?php endif; ?>
                                             <?php endfor; ?>
-                                            <td class="total total-renglon" data-valor="<?php echo $totalRenglon; ?>"><?php echo $totalRenglon; ?></td>
-                                            <td class="total">
+                                            <td class="total total-dosis" data-valor="<?php echo $totalRenglon + $migrantesRenglon; ?>"><?php echo $totalRenglon + $migrantesRenglon; ?></td>
+                                            <td class="total total-afromexicano">
+                                                <span class="conteo-auto"><?php echo $automaticos[$clave]["afromexicano"]; ?></span>
+                                                <span class="mas">+</span>
+                                                <input class="ajuste ajuste-total ajuste-afromexicano"
+                                                       type="number" step="1" min="<?php echo -$automaticos[$clave]["afromexicano"]; ?>" max="999999"
+                                                       name="ajustes[<?php echo escapar($clave); ?>][afromexicano]"
+                                                       aria-label="Ajuste manual de dosis a población afromexicana: <?php echo escapar($biologico . ", " . $grupo . ", " . $renglon["detalle"]); ?>"
+                                                       value="<?php echo ajusteGuardado($ajustes, $clave, "afromexicano"); ?>"
+                                                       data-auto="<?php echo $automaticos[$clave]["afromexicano"]; ?>">
+                                                <span class="conteo-impresion"><?php echo $afromexicanoRenglon; ?></span>
+                                            </td>
+                                            <td class="total total-indigenas">
+                                                <span class="conteo-auto"><?php echo $automaticos[$clave]["indigenas"]; ?></span>
+                                                <span class="mas">+</span>
+                                                <input class="ajuste ajuste-total ajuste-indigenas"
+                                                       type="number" step="1" min="<?php echo -$automaticos[$clave]["indigenas"]; ?>" max="999999"
+                                                       name="ajustes[<?php echo escapar($clave); ?>][indigenas]"
+                                                       aria-label="Ajuste manual de dosis a población indígena: <?php echo escapar($biologico . ", " . $grupo . ", " . $renglon["detalle"]); ?>"
+                                                       value="<?php echo ajusteGuardado($ajustes, $clave, "indigenas"); ?>"
+                                                       data-auto="<?php echo $automaticos[$clave]["indigenas"]; ?>">
+                                                <span class="conteo-impresion"><?php echo $indigenasRenglon; ?></span>
+                                            </td>
+                                            <td class="total total-migrantes">
                                                 <span class="conteo-auto"><?php echo $automaticos[$clave]["migrantes"]; ?></span>
                                                 <span class="mas">+</span>
-                                                <input class="ajuste ajuste-total"
+                                                <input class="ajuste ajuste-total ajuste-migrantes"
                                                        type="number" step="1" min="<?php echo -$automaticos[$clave]["migrantes"]; ?>" max="999999"
                                                        name="ajustes[<?php echo escapar($clave); ?>][migrantes]"
                                                        aria-label="Ajuste manual de migrantes: <?php echo escapar($biologico . ", " . $grupo . ", " . $renglon["detalle"]); ?>"
@@ -1530,7 +1751,6 @@ $guardado = ($_GET["guardado"] ?? "") === "1";
                                                        data-auto="<?php echo $automaticos[$clave]["migrantes"]; ?>">
                                                 <span class="conteo-impresion"><?php echo $migrantesRenglon; ?></span>
                                             </td>
-                                            <td class="total total-incluye" data-valor="<?php echo $totalRenglon + $migrantesRenglon; ?>"><?php echo $totalRenglon + $migrantesRenglon; ?></td>
                                         </tr>
                                     <?php endforeach; ?>
                                 <?php endforeach; ?>
@@ -1542,9 +1762,10 @@ $guardado = ($_GET["guardado"] ?? "") === "1";
                                 <?php foreach ($totalesPagina as $dia => $cantidadTotal): ?>
                                     <th class="dia"><?php echo $dia <= $diasMes ? $cantidadTotal : ""; ?></th>
                                 <?php endforeach; ?>
-                                <th class="total"><?php echo $totalNoMigrantesPagina; ?></th>
-                                <th class="total"><?php echo $totalMigrantesPagina; ?></th>
-                                <th class="total"><?php echo $totalNoMigrantesPagina + $totalMigrantesPagina; ?></th>
+                                <th class="total total-dosis"><?php echo $totalDosisPagina; ?></th>
+                                <th class="total total-afromexicano"><?php echo $totalAfromexicanoPagina; ?></th>
+                                <th class="total total-indigenas"><?php echo $totalIndigenasPagina; ?></th>
+                                <th class="total total-migrantes"><?php echo $totalMigrantesPagina; ?></th>
                             </tr>
                             </tfoot>
                         </table>
@@ -1552,16 +1773,8 @@ $guardado = ($_GET["guardado"] ?? "") === "1";
                 </section>
             <?php endforeach; ?>
         </form>
-        <footer class="pie">
-            Los conteos automáticos se basan en biológico, dosis, edad y características registradas en el expediente.
-            Los ajustes manuales se guardan por unidad y mes.
-        </footer>
     </section>
 
-    <div class="barra" style="margin-top: 18px;">
-        <button class="primario" type="submit" form="form-paloteo">Guardar paloteo</button>
-        <button class="secundario" type="button" onclick="window.print()">Imprimir / Guardar PDF</button>
-    </div>
 </main>
 <script>
     function actualizarTotales() {
@@ -1573,7 +1786,7 @@ $guardado = ($_GET["guardado"] ?? "") === "1";
                 return;
             }
 
-            var totalNoMigrantes = 0;
+            var totalDosis = 0;
             for (var dia = 1; dia <= cantidadDias; dia++) {
                 if (dia > diasDelMes) {
                     filaPie.children[dia].textContent = "";
@@ -1586,17 +1799,26 @@ $guardado = ($_GET["guardado"] ?? "") === "1";
                         + Number.parseInt(campo.value || "0", 10);
                 });
                 filaPie.children[dia].textContent = String(sumaDia);
-                totalNoMigrantes += sumaDia;
-            });
+                totalDosis += sumaDia;
+            }
 
-            var totalMigrantes = 0;
-            tabla.querySelectorAll(".ajuste-total").forEach(function (campo) {
-                totalMigrantes += Number.parseInt(campo.dataset.auto || "0", 10)
-                    + Number.parseInt(campo.value || "0", 10);
-            });
-            filaPie.children[cantidadDias + 1].textContent = String(totalNoMigrantes);
-            filaPie.children[cantidadDias + 2].textContent = String(totalMigrantes);
-            filaPie.children[cantidadDias + 3].textContent = String(totalNoMigrantes + totalMigrantes);
+            function sumaCategoria(selector) {
+                var suma = 0;
+                tabla.querySelectorAll(selector).forEach(function (campo) {
+                    suma += Number.parseInt(campo.dataset.auto || "0", 10)
+                        + Number.parseInt(campo.value || "0", 10);
+                });
+                return suma;
+            }
+
+            var totalAfromexicano = sumaCategoria(".ajuste-afromexicano");
+            var totalIndigenas = sumaCategoria(".ajuste-indigenas");
+            var totalMigrantes = sumaCategoria(".ajuste-migrantes");
+            totalDosis += totalMigrantes;
+            filaPie.querySelector(".total-dosis").textContent = String(totalDosis);
+            filaPie.querySelector(".total-afromexicano").textContent = String(totalAfromexicano);
+            filaPie.querySelector(".total-indigenas").textContent = String(totalIndigenas);
+            filaPie.querySelector(".total-migrantes").textContent = String(totalMigrantes);
         });
     }
 
@@ -1618,15 +1840,23 @@ $guardado = ($_GET["guardado"] ?? "") === "1";
                 totalNoMigrantes += Number.parseInt(ajusteDia.dataset.auto || "0", 10)
                     + Number.parseInt(ajusteDia.value || "0", 10);
             });
-            var campoMigrantes = fila.querySelector(".ajuste-total");
-            var totalMigrantes = Number.parseInt(campoMigrantes.dataset.auto || "0", 10)
-                + Number.parseInt(campoMigrantes.value || "0", 10);
-            var celdaTotal = fila.querySelector(".total-renglon");
-            celdaTotal.dataset.valor = String(totalNoMigrantes);
-            celdaTotal.textContent = String(totalNoMigrantes);
-            var celdaIncluye = fila.querySelector(".total-incluye");
-            celdaIncluye.dataset.valor = String(totalNoMigrantes + totalMigrantes);
-            celdaIncluye.textContent = String(totalNoMigrantes + totalMigrantes);
+            var totalMigrantes = Number.parseInt(
+                fila.querySelector(".ajuste-migrantes").dataset.auto || "0",
+                10
+            ) + Number.parseInt(fila.querySelector(".ajuste-migrantes").value || "0", 10);
+            var celdaDosis = fila.querySelector(".total-dosis");
+            celdaDosis.dataset.valor = String(totalNoMigrantes + totalMigrantes);
+            celdaDosis.textContent = String(totalNoMigrantes + totalMigrantes);
+            [
+                [".ajuste-afromexicano", ".total-afromexicano"],
+                [".ajuste-indigenas", ".total-indigenas"],
+                [".ajuste-migrantes", ".total-migrantes"]
+            ].forEach(function (selectores) {
+                var campoCategoria = fila.querySelector(selectores[0]);
+                var totalCategoria = Number.parseInt(campoCategoria.dataset.auto || "0", 10)
+                    + Number.parseInt(campoCategoria.value || "0", 10);
+                fila.querySelector(selectores[1]).textContent = String(totalCategoria);
+            });
             actualizarTotales();
         });
     });

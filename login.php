@@ -70,7 +70,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
         <header class="login-encabezado">
             <div class="login-logo">
-                <span aria-hidden="true">✚</span>
+                <svg viewBox="0 0 48 48" aria-hidden="true" focusable="false">
+                    <path d="m31 6 11 11M27 10l11 11M34 14 17 31" />
+                    <path d="m23 25 7 7-7 7-7-7 7-7Z" />
+                    <path d="m16 32-8 8m5-2 3 3m-6-6 3 3M32 6l10 10M19 29l4 4m0-8 4 4" />
+                </svg>
             </div>
 
             <h1>Vacunación</h1>

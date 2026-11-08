@@ -40,6 +40,13 @@ body {
     line-height: 1.5;
 }
 
+p {
+    font-family: "Segoe UI", "Aptos", Arial, sans-serif;
+    font-size: 14px;
+    letter-spacing: 0.01em;
+    line-height: 1.7;
+}
+
 /* Títulos */
 
 h1, h2, h3 {

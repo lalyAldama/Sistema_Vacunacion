@@ -65,6 +65,7 @@ if (!$temporadaActiva) {
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <title>Censo de influenza fuera de temporada</title>
         <link rel="stylesheet" href="css/censo.css">
+        <link rel="stylesheet" href="../css/tema_reportes.css">
     </head>
     <body<?php if ($capturaHistorialActiva): ?>
         data-historial-tipo="influenza"
@@ -85,9 +86,12 @@ if (!$temporadaActiva) {
                 <form method="get" action="influenza.php" class="buscador">
                     <label for="fecha-historica">Consultar el censo en una fecha:</label>
                     <input id="fecha-historica" type="date" name="historico_fecha" max="<?= date('Y-m-d') ?>" required>
-                    <button class="btn btn-azul" type="submit">CONSULTAR HISTORIAL</button>
+                    <button class="btn btn-azul btn-icono" type="submit" aria-label="Consultar historial" title="Consultar historial">
+                        <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="10.8" cy="10.8" r="6.8"></circle><path d="m16 16 5 5"></path>
+                        </svg>
+                    </button>
                 </form>
-                <p>Las copias se guardan automáticamente desde que se consulta este censo y se conservan durante cinco años.</p>
             </section>
             <a class="btn btn-censo" href="index.php">VOLVER AL CENSO</a>
         </main>
@@ -265,6 +269,7 @@ if ($busqueda !== '') {
 @media(max-width:800px){.datos-administrativos{grid-template-columns:1fr}.bloque-admin-influenza,.datos-inferiores-influenza{grid-column:1}.datos-inferiores-influenza{grid-template-columns:1fr 1fr}.logos-institucionales-influenza{width:72%;max-width:100%;max-height:34px}}
 @media print{body{background:#fff;padding:0}.barra-superior,.panel-filtros,.aviso-influenza,.pie-influenza{display:none!important}.encabezado-influenza{break-inside:avoid}.tabla-scroll{overflow:visible}.censo-influenza{font-size:8px}}
 </style>
+<link rel="stylesheet" href="../css/tema_reportes.css">
 </head>
 <body<?php if ($capturaHistorialActiva): ?>
     data-historial-tipo="influenza"
@@ -292,16 +297,22 @@ if ($busqueda !== '') {
     <div class="panel-filtros">
         <form class="buscador" method="get" action="influenza.php">
             <input type="text" name="buscar" value="<?= h($busqueda) ?>" placeholder="Buscar por nombre o apellido">
-            <button class="btn btn-azul" type="submit">BUSCAR</button>
+            <button class="btn btn-azul btn-icono" type="submit" aria-label="Buscar" title="Buscar">
+                <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="10.8" cy="10.8" r="6.8"></circle><path d="m16 16 5 5"></path>
+                </svg>
+            </button>
         </form>
     </div>
     <section class="panel-filtros consulta-historica">
         <form method="get" action="influenza.php" class="buscador">
-            <label for="fecha-historica">Consultar cómo estaba este censo en una fecha:</label>
             <input id="fecha-historica" type="date" name="historico_fecha" max="<?= date('Y-m-d') ?>" required>
-            <button type="submit" class="btn btn-azul">CONSULTAR HISTORIAL</button>
+            <button type="submit" class="btn btn-azul btn-icono" aria-label="Consultar historial" title="Consultar historial">
+                <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="10.8" cy="10.8" r="6.8"></circle><path d="m16 16 5 5"></path>
+                </svg>
+            </button>
         </form>
-        <p>Las copias se guardan automáticamente desde que se consulta este censo y se conservan durante cinco años.</p>
     </section>
 
     <section class="encabezado-influenza encabezado-editable" id="encabezadoEditable">

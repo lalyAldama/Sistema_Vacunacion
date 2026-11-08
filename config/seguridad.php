@@ -104,3 +104,59 @@ function agregarProteccionHumanaAFormularios($html)
 }
 
 ob_start("agregarProteccionHumanaAFormularios");
+
+function agregarNavegacionPrincipal($html)
+{
+    $archivoActual = basename($_SERVER["SCRIPT_NAME"] ?? "");
+    if (
+        empty($_SESSION["id_usuario"])
+        || $archivoActual === "logout.php"
+        || stripos($html, "<body") === false
+    ) {
+        return $html;
+    }
+
+    $raizAplicacion = realpath(__DIR__ . "/..");
+    $raizDocumentos = realpath($_SERVER["DOCUMENT_ROOT"] ?? "");
+    $rutaBase = "";
+    if ($raizAplicacion && $raizDocumentos) {
+        $rutaBase = str_replace(
+            "\\",
+            "/",
+            substr($raizAplicacion, strlen($raizDocumentos))
+        );
+    }
+    $rutaMenu = rtrim($rutaBase, "/") . "/menu.php";
+    $rutaEstilos = rtrim($rutaBase, "/") . "/css/navegacion.css";
+    $rutaScript = rtrim($rutaBase, "/") . "/js/navegacion.js";
+    $rutaMenu = htmlspecialchars($rutaMenu, ENT_QUOTES, "UTF-8");
+    $rutaEstilos = htmlspecialchars($rutaEstilos, ENT_QUOTES, "UTF-8");
+    $rutaScript = htmlspecialchars($rutaScript, ENT_QUOTES, "UTF-8");
+
+    $etiquetasHead = '<script src="' . $rutaScript . '" data-menu-url="' . $rutaMenu . '" defer></script>';
+    $mostrarBoton = !in_array($archivoActual, ["menu.php", "login.php"], true);
+    if ($mostrarBoton) {
+        $etiquetasHead = '<link rel="stylesheet" href="' . $rutaEstilos . '">' . PHP_EOL . $etiquetasHead;
+    }
+
+    $html = preg_replace('/<\/head>/i', $etiquetasHead . PHP_EOL . '</head>', $html, 1);
+    if (!$mostrarBoton) {
+        return $html;
+    }
+
+    return preg_replace(
+        '/<body\b[^>]*>/i',
+        '$0' . PHP_EOL
+            . '<a class="boton-menu-principal" href="' . $rutaMenu . '">'
+            . '<svg aria-hidden="true" viewBox="0 0 24 24" focusable="false">'
+            . '<path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1V10Z"/>'
+            . '<path d="M2 10 12 2l10 8"/>'
+            . '</svg>'
+            . '<span>Menú principal</span>'
+            . '</a>',
+        $html,
+        1
+    );
+}
+
+ob_start("agregarNavegacionPrincipal");

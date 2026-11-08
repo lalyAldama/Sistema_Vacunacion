@@ -180,8 +180,8 @@
 .menu-modulos {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 18px;
-    padding: 28px;
+    gap: 16px;
+    padding: 26px;
     background: #F6FAFB;
 }
 
@@ -192,29 +192,27 @@
     position: relative;
     display: flex;
     align-items: center;
-    gap: 15px;
+    gap: 18px;
     min-width: 0;
-    min-height: 112px;
-    padding: 20px;
+    min-height: 132px;
+    padding: 20px 22px;
     overflow: hidden;
-    background: var(--menu-blanco);
+    background: linear-gradient(115deg, #FFFFFF 65%, var(--acento-claro));
     border: 1px solid var(--menu-borde);
     border-left: 4px solid var(--acento);
-    border-radius: 15px;
+    border-radius: 14px;
     color: var(--menu-texto);
     text-decoration: none;
-    box-shadow: 0 3px 10px rgba(40, 95, 112, 0.035);
+    box-shadow: 0 4px 12px rgba(40, 95, 112, 0.045);
     transition:
-        transform 0.22s ease,
-        box-shadow 0.22s ease,
-        border-color 0.22s ease;
+        transform 0.2s ease,
+        box-shadow 0.2s ease,
+        background-color 0.2s ease;
 }
 
 .menu-tarjeta:hover {
-    transform: translateY(-4px);
-    border-color: #B8DADf;
-    border-left-color: var(--acento);
-    box-shadow: 0 12px 25px rgba(40, 95, 112, 0.12);
+    transform: translateY(-3px);
+    box-shadow: 0 10px 22px rgba(40, 95, 112, 0.11);
 }
 
 .menu-tarjeta:active {
@@ -234,9 +232,9 @@
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
-    width: 54px;
-    height: 54px;
-    border-radius: 14px;
+    width: 58px;
+    height: 58px;
+    border-radius: 16px;
     background: var(--acento-claro);
     color: var(--acento);
     font-size: 29px;
@@ -253,20 +251,13 @@
     display: flex;
     flex: 1;
     flex-direction: column;
-    gap: 7px;
     min-width: 0;
 }
 
 .menu-texto strong {
     color: var(--menu-azul-oscuro);
-    font-size: 14px;
-    line-height: 1.45;
-}
-
-.menu-texto small {
-    color: var(--menu-texto-suave);
-    font-size: 12px;
-    line-height: 1.5;
+    font-size: 18px;
+    line-height: 1.35;
 }
 
 .menu-flecha {
@@ -274,12 +265,12 @@
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
-    width: 30px;
-    height: 30px;
+    width: 32px;
+    height: 32px;
     border-radius: 50%;
     background: var(--acento-claro);
     color: var(--acento);
-    font-size: 25px;
+    font-size: 23px;
     line-height: 1;
     transition: transform 0.22s ease;
 }
@@ -415,15 +406,24 @@
     }
 
     .menu-tarjeta {
-        min-height: 98px;
-        padding: 15px;
-        gap: 12px;
+        min-height: 108px;
+        padding: 16px;
     }
 
     .menu-icono {
-        width: 46px;
-        height: 46px;
-        font-size: 25px;
+        width: 48px;
+        height: 48px;
+        border-radius: 14px;
+        font-size: 26px;
+    }
+
+    .menu-texto strong {
+        font-size: 18px;
+    }
+
+    .menu-flecha {
+        width: 30px;
+        height: 30px;
     }
 
     .menu-pie {
@@ -434,6 +434,23 @@
 
     .menu-salir {
         align-self: flex-start;
+    }
+}
+
+@media (max-width: 380px) {
+    .menu-tarjeta {
+        gap: 12px;
+        padding: 14px;
+    }
+
+    .menu-icono {
+        width: 44px;
+        height: 44px;
+        font-size: 24px;
+    }
+
+    .menu-texto strong {
+        font-size: 16px;
     }
 }
 

@@ -215,6 +215,7 @@ function censoHistorialMostrar(
             .copia-historica { width:100%; min-height:75vh; border:1px solid #777; background:#fff; }
             .mensaje-historico { margin:14px 0; padding:12px; background:#fff8e1; border:1px solid #d6b656; }
         </style>
+        <link rel="stylesheet" href="../css/tema_reportes.css">
     </head>
     <body>
     <main class="pagina">
@@ -231,7 +232,11 @@ function censoHistorialMostrar(
                 <input id="fecha-historica" type="date" name="historico_fecha"
                     max="<?php echo date("Y-m-d"); ?>"
                     value="<?php echo $escape($fecha ?? ""); ?>" required>
-                <button class="btn btn-azul" type="submit">CONSULTAR</button>
+                <button class="btn btn-azul btn-icono" type="submit" aria-label="Consultar historial" title="Consultar historial">
+                    <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="10.8" cy="10.8" r="6.8"></circle><path d="m16 16 5 5"></path>
+                    </svg>
+                </button>
             </form>
             <p>Se muestra la última copia registrada en o antes de la fecha elegida.</p>
         </section>

@@ -1,0 +1,315 @@
+:root {
+    --tema-azul: #347F91;
+    --tema-azul-oscuro: #285F70;
+    --tema-turquesa: #35AFA8;
+    --tema-menta: #C7EEE2;
+    --tema-fondo: #F2F8FA;
+    --tema-blanco: #FFFFFF;
+    --tema-texto: #34495E;
+    --tema-texto-suave: #647985;
+    --tema-borde: #DCE9ED;
+    --tema-error: #B8424D;
+}
+
+@media screen {
+    .encabezado-reporte {
+        position: relative;
+        overflow: hidden;
+        display: flex;
+        align-items: center !important;
+        justify-content: flex-start !important;
+        gap: 20px !important;
+        min-height: 132px;
+        margin: 0 0 18px !important;
+        padding: 25px 30px !important;
+        border: 1px solid var(--tema-borde) !important;
+        border-left: 6px solid var(--tema-turquesa) !important;
+        border-radius: 14px !important;
+        background: linear-gradient(115deg, #FFFFFF 0%, #F7FBFC 62%, #E3F0F5 100%) !important;
+        box-shadow: 0 8px 24px rgba(40, 95, 112, .09) !important;
+        font-family: "Segoe UI", "Aptos", system-ui, sans-serif !important;
+    }
+
+    .encabezado-reporte::after {
+        position: absolute;
+        top: -72px;
+        right: -20px;
+        width: 230px;
+        height: 230px;
+        border: 26px solid rgba(53, 175, 168, .09);
+        border-radius: 50%;
+        content: "";
+        pointer-events: none;
+    }
+
+    .encabezado-reporte__contenido {
+        position: relative;
+        z-index: 1;
+        width: 100%;
+        min-width: 0;
+        text-align: left !important;
+    }
+
+    .encabezado-reporte__seccion {
+        display: inline-flex !important;
+        align-items: center;
+        min-height: 25px;
+        margin-bottom: 9px !important;
+        padding: 4px 10px;
+        border: 1px solid rgba(53, 175, 168, .2);
+        border-radius: 20px;
+        background: #E8F6F3;
+        color: var(--tema-azul-oscuro) !important;
+        font-size: 11px !important;
+        font-weight: 750 !important;
+        letter-spacing: .1em !important;
+        line-height: 1.2;
+        text-transform: uppercase;
+    }
+
+    .encabezado-reporte h1 {
+        margin: 0 !important;
+        color: var(--tema-azul-oscuro) !important;
+        font-family: "Segoe UI", "Aptos", system-ui, sans-serif !important;
+        font-size: clamp(28px, 3.5vw, 36px) !important;
+        font-weight: 700 !important;
+        letter-spacing: -.035em;
+        line-height: 1.18 !important;
+        text-align: left !important;
+    }
+
+    .encabezado-reporte p {
+        margin: 8px 0 0 !important;
+        color: var(--tema-texto-suave) !important;
+        font-family: "Segoe UI", "Aptos", system-ui, sans-serif !important;
+        font-size: 15px !important;
+        line-height: 1.5;
+    }
+
+    body {
+        font-family: "Segoe UI", "Aptos", system-ui, -apple-system, BlinkMacSystemFont, sans-serif !important;
+        font-size: 14px;
+        -webkit-font-smoothing: antialiased;
+        text-rendering: optimizeLegibility;
+    }
+
+    body {
+        color: var(--tema-texto) !important;
+        background:
+            radial-gradient(circle at 8% 8%, rgba(53, 175, 168, .09), transparent 28%),
+            radial-gradient(circle at 92% 92%, rgba(52, 127, 145, .08), transparent 30%),
+            var(--tema-fondo) !important;
+    }
+
+    .barra,
+    .hoja,
+    .panel,
+    .contenedor,
+    .formulario,
+    .panel-filtros,
+    .panel-resultados,
+    .barra-superior,
+    .encabezado-institucional {
+        border-color: var(--tema-borde);
+        border-radius: 10px;
+        background-color: var(--tema-blanco);
+        box-shadow: 0 4px 16px rgba(40, 95, 112, .07);
+    }
+
+    .barra label,
+    .periodo label,
+    .control-periodo {
+        color: var(--tema-azul-oscuro);
+        font-family: inherit !important;
+        font-size: 13px !important;
+        font-weight: 650;
+        letter-spacing: .01em;
+    }
+
+    .barra button,
+    .barra .boton,
+    .barra a,
+    .barra select,
+    .barra input {
+        font-family: inherit !important;
+        font-size: 13px;
+    }
+
+    .barra button,
+    .barra .boton,
+    .barra a {
+        min-height: 40px;
+    }
+
+    .barra button,
+    .barra .boton,
+    .barra a:not(.boton) {
+        font-weight: 650;
+        letter-spacing: .01em;
+    }
+
+    .barra .campo-texto {
+        flex: 1 1 155px;
+        min-width: 145px;
+    }
+
+    .barra .campo-periodo,
+    .barra .control-periodo {
+        flex: 0 1 130px;
+        min-width: 110px;
+    }
+
+    .barra .campo-texto input,
+    .barra .campo-periodo select,
+    .barra .control-periodo select {
+        width: 100%;
+    }
+
+    .barra .boton-mensual-influenza {
+        padding: 0 14px;
+        border: 1px solid var(--tema-borde);
+        border-radius: 8px;
+        background: #E3F0F5;
+        color: var(--tema-azul-oscuro);
+    }
+
+    .barra .boton-mensual-influenza:hover {
+        background: var(--tema-menta);
+        color: var(--tema-azul-oscuro);
+    }
+
+    h1,
+    h2,
+    h3 {
+        color: var(--tema-azul-oscuro);
+    }
+
+    button,
+    .btn,
+    .boton,
+    input[type="submit"],
+    input[type="button"] {
+        border-radius: 8px;
+        background-color: var(--tema-azul);
+        color: var(--tema-blanco);
+        transition: background-color .2s ease, box-shadow .2s ease, transform .2s ease;
+    }
+
+    button:hover,
+    .btn:hover,
+    .boton:hover,
+    input[type="submit"]:hover,
+    input[type="button"]:hover {
+        background-color: var(--tema-azul-oscuro);
+        color: var(--tema-blanco);
+    }
+
+    .primario,
+    .btn-azul,
+    .btn-verde,
+    .btn-censo,
+    .boton-icono,
+    .btn-icono {
+        border-color: transparent;
+        background-color: var(--tema-azul);
+        color: var(--tema-blanco);
+    }
+
+    .secundario,
+    .btn-secundario {
+        border: 1px solid var(--tema-borde);
+        background-color: var(--tema-azul-claro, #E3F0F5);
+        color: var(--tema-azul-oscuro);
+    }
+
+    .secundario:hover,
+    .btn-secundario:hover {
+        background-color: var(--tema-menta);
+        color: var(--tema-azul-oscuro);
+    }
+
+    .barra select,
+    .periodo select,
+    .filtro-informe input[type="month"],
+    input:not([type="checkbox"]):not([type="radio"]):not([type="submit"]):not([type="button"]),
+    select,
+    textarea {
+        border-color: #B8CDD4;
+        border-radius: 8px;
+        color: var(--tema-texto);
+    }
+
+    input:focus,
+    select:focus,
+    textarea:focus {
+        border-color: var(--tema-turquesa);
+        outline: none;
+        box-shadow: 0 0 0 3px rgba(53, 175, 168, .15);
+    }
+
+    .estado {
+        color: var(--tema-azul-oscuro);
+    }
+
+    .error,
+    .login-error,
+    [role="alert"] {
+        border-color: #E8BEC3;
+        background-color: #FCEDEF;
+        color: #963A45;
+    }
+
+    .tabla-contenedor table thead th,
+    table:not(.censo):not(.censo-influenza):not(.formato-oficial) thead th {
+        background-color: #E3F0F5;
+        color: var(--tema-azul-oscuro);
+    }
+
+    tbody tr:nth-child(even) {
+        background-color: #F6FAFB;
+    }
+
+    .movimiento-entrada {
+        background-color: var(--tema-menta);
+        color: var(--tema-azul-oscuro);
+    }
+
+    .movimiento-desecho {
+        background-color: #E3F0F5;
+        color: var(--tema-azul-oscuro);
+    }
+
+    .movimiento-donacion {
+        background-color: #DDF3F0;
+        color: #245E60;
+    }
+
+    .movimiento-reemplazo {
+        background-color: #E3F0F5;
+        color: var(--tema-azul-oscuro);
+    }
+
+    @media (max-width: 560px) {
+        .encabezado-reporte {
+            align-items: flex-start;
+            flex-direction: column;
+            gap: 6px !important;
+            min-height: 0;
+            padding: 19px 20px !important;
+        }
+
+        .encabezado-reporte h1 {
+            font-size: clamp(25px, 8vw, 32px) !important;
+        }
+
+        .encabezado-reporte p {
+            font-size: 14px !important;
+        }
+    }
+}
+
+@media print {
+    .encabezado-reporte {
+        display: none !important;
+    }
+}
