@@ -5,8 +5,12 @@ if(!isset($_SESSION["id_usuario"])) {
     header("Location: ../login.php");
     exit();
 }
+$id_usuario = (int)$_SESSION["id_usuario"];
 
 require_once "../config/conexion.php";
+if (!isset($conexion)) {
+    die("Error: no se pudo establecer la conexión a la base de datos.");
+}
 require_once __DIR__ . "/../config/unidad_contexto.php";
 unidadExigirPersonalDeUnidad();
 $contextoUnidad = unidadObtenerContexto($conexion);
@@ -765,9 +769,10 @@ if($_SERVER["REQUEST_METHOD"] == "POST") {
                         clasificacion_sr,
                         clasificacion_varicela_hepatitis_a,
                         dosis_cero,
-                        observaciones
+                        observaciones,
+                        id_usuario
                     )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
     $stmtInsertar = $conexion->prepare($sqlInsertar);
 
@@ -776,7 +781,7 @@ if($_SERVER["REQUEST_METHOD"] == "POST") {
     }
 
     $stmtInsertar->bind_param(
-        "siiiisssssis",
+        "siiiisssssisi",
         $id_paciente,
         $id_esquema_biologico_dosis,
         $id_lote,
@@ -788,7 +793,8 @@ if($_SERVER["REQUEST_METHOD"] == "POST") {
         $clasificacionSr,
         $clasificacionVaricelaHepatitisA,
         $dosis_cero,
-        $observaciones
+        $observaciones,
+        $id_usuario
     );
 
     if(!$stmtInsertar->execute()) {

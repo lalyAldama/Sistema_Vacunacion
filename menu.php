@@ -105,6 +105,34 @@ if ($esRolCoordinador) {
                 </summary>
                 <?php require __DIR__ . "/menu_admin.php"; ?>
             </details>
+        <?php } elseif ($rol === "Personal de unidad") { ?>
+            <details class="menu-admin-config">
+                <summary aria-label="Abrir acciones de personal de unidad" title="Acciones de personal de unidad">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Z"></path>
+                        <path d="m19.4 15 .1.1a1.5 1.5 0 1 1-2.1 2.1l-.1-.1a1.5 1.5 0 0 0-2.6 1.1v.2a1.5 1.5 0 1 1-3 0v-.2a1.5 1.5 0 0 0-2.6-1.1l-.1.1a1.5 1.5 0 1 1-2.1-2.1l.1-.1a1.5 1.5 0 0 0-1.1-2.6h-.2a1.5 1.5 0 1 1 0-3h.2a1.5 1.5 0 0 0 1.1-2.6l-.1-.1a1.5 1.5 0 1 1 2.1-2.1l.1.1a1.5 1.5 0 0 0 2.6-1.1v-.2a1.5 1.5 0 1 1 3 0v.2a1.5 1.5 0 0 0 2.6 1.1l.1-.1a1.5 1.5 0 1 1 2.1 2.1l-.1.1a1.5 1.5 0 0 0 1.1 2.6h.2a1.5 1.5 0 1 1 0 3h-.2a1.5 1.5 0 0 0-1.1 2.6Z"></path>
+                    </svg>
+                </summary>
+                <section class="menu-admin-panel" aria-label="Acciones de personal de unidad">
+                    <div class="menu-admin-encabezado">
+                        <span>PERSONAL DE UNIDAD</span>
+                        <h2>Acciones</h2>
+                    </div>
+                    <a class="menu-admin-enlace menu-admin-usuarios" href="usuarios/agregar_enfermero.php">
+                        <span class="menu-admin-enlace-icono" aria-hidden="true">
+                            <svg viewBox="0 0 24 24">
+                                <circle cx="9" cy="8" r="3"></circle>
+                                <path d="M3.5 20v-1.5a5.5 5.5 0 0 1 11 0V20zM18 8v6M15 11h6"></path>
+                            </svg>
+                        </span>
+                        <span>
+                            <strong>Agregar enfermero</strong>
+                            <small>Crear una cuenta para esta unidad</small>
+                        </span>
+                        <span class="menu-admin-enlace-flecha" aria-hidden="true">›</span>
+                    </a>
+                </section>
+            </details>
         <?php } ?>
 
         <header class="menu-encabezado">
@@ -250,7 +278,14 @@ if ($esRolCoordinador) {
                 <a class="menu-tarjeta verde" href="exportar_importar/importar_correcciones.php">
                     <span class="menu-icono"><img src="iconos_menu/11_actualizar_informacion.png" alt=""></span>
                     <span class="menu-texto">
-                        <strong>Importar correcciones del supervisor</strong>
+                        <strong>Actualizar información</strong>
+                    </span>
+                    <span class="menu-flecha">›</span>
+                </a>
+                <a class="menu-tarjeta turquesa" href="bitacora/index.php">
+                    <span class="menu-icono"><img src="iconos_menu/12_bitacora.png" alt=""></span>
+                    <span class="menu-texto">
+                        <strong>Bitacora de aplicaciones</strong>
                     </span>
                     <span class="menu-flecha">›</span>
                 </a>
