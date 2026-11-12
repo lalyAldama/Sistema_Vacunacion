@@ -32,6 +32,18 @@ require_once __DIR__ . "/config/seguridad_administrador.php";
         </span>
         <span class="menu-admin-enlace-flecha" aria-hidden="true">›</span>
     </a>
+    <a class="menu-admin-enlace menu-admin-unidades" href="unidades/index.php">
+        <span class="menu-admin-enlace-icono" aria-hidden="true">
+            <svg viewBox="0 0 24 24">
+                <path d="M4 21V5h16v16M2 21h20M9 21v-5h6v5M12 7v5M9.5 9.5h5"></path>
+            </svg>
+        </span>
+        <span>
+            <strong>Unidades</strong>
+            <small>Registrar unidades</small>
+        </span>
+        <span class="menu-admin-enlace-flecha" aria-hidden="true">›</span>
+    </a>
     <a class="menu-admin-enlace menu-admin-esquemas" href="censo/administrar.php">
         <span class="menu-admin-enlace-icono" aria-hidden="true">
             <svg viewBox="0 0 24 24">

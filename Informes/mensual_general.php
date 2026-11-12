@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . "/../config/seguridad.php";
+require_once __DIR__ . "/mensual_mapeo.php";
 
 if (!isset($_SESSION["id_usuario"])) {
     header("Location: ../login.php");
@@ -225,27 +226,6 @@ function extraerEstilosInforme($xml, $espacio)
     return $estilos;
 }
 
-function puntuarTextoInforme($esperado, $actual)
-{
-    $esperado = textoNormalizadoInforme($esperado);
-    $actual = textoNormalizadoInforme($actual);
-    if ($esperado === $actual) {
-        return 100;
-    }
-    if ($esperado === "" || $actual === "") {
-        return 0;
-    }
-
-    similar_text($esperado, $actual, $similitud);
-    $tokensEsperados = array_unique(explode(" ", $esperado));
-    $tokensActuales = array_unique(explode(" ", $actual));
-    $coincidencias = count(array_intersect($tokensEsperados, $tokensActuales));
-    $f1Tokens = 200 * $coincidencias
-        / (count($tokensEsperados) + count($tokensActuales));
-
-    return max($similitud, $f1Tokens);
-}
-
 function conteosRenglonInforme($id, $datosPaloteo)
 {
     $automaticos = $datosPaloteo["automaticos"][$id];
@@ -396,68 +376,6 @@ function cargarPlantillaInforme($ruta, $mes, $meses)
     ];
 }
 
-function normalizarBiologicoInforme($biologico)
-{
-    $biologico = textoNormalizadoInforme($biologico);
-    if (
-        $biologico === "td dpt"
-        || (str_contains($biologico, "hexavalente") && str_contains($biologico, "dpt"))
-    ) {
-        return "dpt";
-    }
-    if ($biologico === "td td") {
-        return "132td";
-    }
-    if (preg_match('/^(?:123 )?dpt$/', $biologico)) {
-        return "dpt";
-    }
-    return preg_replace('/\s+/', '', $biologico);
-}
-
-function buscarFilaOficialInforme($renglon, $filasOficiales)
-{
-    $biologicoOrigen = normalizarBiologicoInforme($renglon["biologico"]);
-    $descripcionOrigen = trim(
-        ($renglon["grupo"] ?? "") . " " . ($renglon["detalle"] ?? "")
-    );
-    $candidatos = [];
-    foreach ($filasOficiales as $indice => $filaOficial) {
-        $puntuacionBiologico = puntuarTextoInforme(
-            $biologicoOrigen,
-            normalizarBiologicoInforme($filaOficial["biologico"])
-        );
-        if ($puntuacionBiologico < 65) {
-            continue;
-        }
-        $puntuacionDescripcion = puntuarTextoInforme(
-            $descripcionOrigen,
-            $filaOficial["descripcion"]
-        );
-        if ($puntuacionDescripcion < 65) {
-            continue;
-        }
-        $candidatos[] = [
-            "indice" => $indice,
-            "puntuacion" => $puntuacionBiologico * 0.55
-                + $puntuacionDescripcion * 0.45
-        ];
-    }
-    usort($candidatos, function ($a, $b) {
-        return $b["puntuacion"] <=> $a["puntuacion"];
-    });
-    if (
-        !$candidatos
-        || $candidatos[0]["puntuacion"] < 72
-        || (
-            isset($candidatos[1])
-            && $candidatos[0]["puntuacion"] - $candidatos[1]["puntuacion"] < 3
-        )
-    ) {
-        return null;
-    }
-    return $candidatos[0]["indice"];
-}
-
 function obtenerRenglonesOficialesInforme($plantilla, $datosPaloteo)
 {
     $renglonesPaloteo = $datosPaloteo["renglones"];
@@ -487,7 +405,7 @@ function obtenerRenglonesOficialesInforme($plantilla, $datosPaloteo)
                 $plantilla["cadenas"],
                 $bloque["clave"] . $fila
             );
-            if (!preg_match('/^[A-Z]{2,5}\d{1,3}$/', $clave)) {
+            if (!preg_match('/^[A-Za-z]{2,5}\d{1,3}$/', $clave)) {
                 continue;
             }
 
@@ -512,11 +430,41 @@ function obtenerRenglonesOficialesInforme($plantilla, $datosPaloteo)
                 }
             }
             $descripcion = implode(" ", $partesDescripcion);
+            if (preg_match('/^(Vhb|Vtd)(0[2-9]|1[0-2])$/', $clave, $claveVariable)) {
+                $mesPlantilla = array_search($plantilla["encabezado"], $plantilla["meses"], true);
+                $descripcionNormalizada = textoNormalizadoInforme($descripcion);
+                if (
+                    (int)$claveVariable[2] !== $mesPlantilla
+                    || (
+                        $claveVariable[1] === "Vhb"
+                        && ($bloque["clave"] !== "G"
+                            || $fila !== $plantilla["encabezado"] + 10
+                            || !str_contains($descripcionNormalizada, "mayores de 11 anos")
+                            || !str_contains($descripcionNormalizada, "primera"))
+                    )
+                    || (
+                        $claveVariable[1] === "Vtd"
+                        && ($bloque["clave"] !== "U"
+                            || $fila !== $plantilla["encabezado"] + 20
+                            || !str_contains($descripcionNormalizada, "embarazadas")
+                            || !str_contains($descripcionNormalizada, "tercera")
+                            || !str_contains($descripcionNormalizada, "10 a 19 anos"))
+                    )
+                ) {
+                    http_response_code(500);
+                    exit("La plantilla contiene una clave mensual inesperada: " . $clave);
+                }
+                $clave = $claveVariable[1] === "Vhb" ? "VHB01" : "VTD01";
+            } elseif (!preg_match('/^[A-Z]{2,5}\d{1,3}$/', $clave)) {
+                http_response_code(500);
+                exit("La plantilla contiene una clave de renglón inválida: " . $clave);
+            }
             $columnasClave = $bloque["clave"] === "G"
                 ? ["G", "I", "K", "M"]
                 : ["U", "W", "Y", "AA"];
             $filasOficiales[] = [
                 "fila" => $fila,
+                "columnaClave" => $bloque["clave"],
                 "lado" => $bloque["clave"] === "G" ? 0 : 1,
                 "clave" => $clave,
                 "claves" => array_map(function ($columna) use ($fila, $plantilla) {
@@ -539,6 +487,16 @@ function obtenerRenglonesOficialesInforme($plantilla, $datosPaloteo)
         }
     }
 
+    $indicesPorCodigo = [];
+    foreach ($filasOficiales as $indice => $filaOficial) {
+        $codigo = $filaOficial["clave"];
+        if (isset($indicesPorCodigo[$codigo])) {
+            http_response_code(500);
+            exit("La plantilla del informe contiene una clave de renglón duplicada: " . $codigo);
+        }
+        $indicesPorCodigo[$codigo] = $indice;
+    }
+    $codigosPaloteo = codigosPaloteoInformeMensual();
     $renglonesPendientes = [];
     foreach ($renglonesPaloteo as $id => $renglon) {
         $biologicoNormalizado = textoNormalizadoInforme($renglon["biologico"]);
@@ -548,7 +506,8 @@ function obtenerRenglonesOficialesInforme($plantilla, $datosPaloteo)
         ) {
             continue;
         }
-        $indiceOficial = buscarFilaOficialInforme($renglon, $filasOficiales);
+        $codigo = $codigosPaloteo[$id] ?? null;
+        $indiceOficial = $codigo !== null ? ($indicesPorCodigo[$codigo] ?? null) : null;
         if ($indiceOficial !== null) {
             foreach ($conteos[$id] as $campo => $valor) {
                 $filasOficiales[$indiceOficial]["conteos"][$campo] += $valor;
@@ -581,6 +540,7 @@ function construirVistaOficialInforme(
 ) {
     $sobrescrituras = [];
     foreach ($reporte["filas"] as $filaReporte) {
+        $sobrescrituras[$filaReporte["columnaClave"] . $filaReporte["fila"]] = $filaReporte["clave"];
         foreach ([
             "total" => $filaReporte["valores"][0],
             "afromexicano" => $filaReporte["valores"][1],
@@ -772,7 +732,7 @@ function prepararArchivoExcelInforme(
                 $plantilla["cadenas"],
                 $columnaClave . $numeroFila
             );
-            if (preg_match('/^[A-Z]{2,5}\d{1,3}$/', $clave)) {
+            if (preg_match('/^[A-Za-z]{2,5}\d{1,3}$/', $clave)) {
                 foreach ($columnasValores as $columna) {
                     establecerValorCeldaInforme(
                         $documento,
@@ -786,6 +746,12 @@ function prepararArchivoExcelInforme(
     }
 
     foreach ($reporte["filas"] as $filaReporte) {
+        establecerValorCeldaInforme(
+            $documento,
+            $celdas,
+            $filaReporte["columnaClave"] . $filaReporte["fila"],
+            $filaReporte["clave"]
+        );
         foreach ([
             "total" => $filaReporte["valores"][0],
             "afromexicano" => $filaReporte["valores"][1],

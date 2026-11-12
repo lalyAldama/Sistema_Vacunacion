@@ -9,11 +9,11 @@ if (!isset($_SESSION["id_usuario"])) {
 
 require_once "../config/conexion.php";
 require_once __DIR__ . "/../config/unidad_contexto.php";
+unidadExigirPersonalDeUnidad();
 require_once __DIR__ . "/configuracion.php";
 unidadAsegurarUnidadEnPacienteCenso($conexion);
 $contextoUnidad = unidadObtenerContexto($conexion);
 $idUnidad = $contextoUnidad["id_unidad"];
-unidadExigirPermisoEscritura();
 
 try {
     censoAsegurarTablaConfiguracion($conexion);

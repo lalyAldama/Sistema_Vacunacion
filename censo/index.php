@@ -12,6 +12,7 @@ require_once __DIR__ . "/../config/unidad_contexto.php";
 require_once __DIR__ . "/historial.php";
 require_once __DIR__ . "/configuracion.php";
 $contextoUnidad = unidadObtenerContexto($conexion);
+$soloConsultaCenso = !unidadEsPersonalDeUnidad();
 $idUnidad = $contextoUnidad["id_unidad"];
 unidadAsegurarUnidadEnPacienteCenso($conexion);
 censoHistorialAsegurarTabla($conexion);
@@ -219,7 +220,19 @@ if ($idPacienteSolicitado !== "") {
 } elseif ($buscar !== "") {
 
     /* La búsqueda NO está condicionada por el censo seleccionado. */
-    $termino = "%" . $buscar . "%";
+    $palabras = preg_split('/\s+/u', $buscar, -1, PREG_SPLIT_NO_EMPTY);
+    if ($palabras === false || count($palabras) === 0) {
+        http_response_code(400);
+        exit("El texto de búsqueda no es válido.");
+    }
+
+    $condiciones = [];
+    $parametros = [$idUnidad];
+    foreach ($palabras as $palabra) {
+        $condiciones[] = "(p.ap_pat LIKE ? OR p.ap_mat LIKE ? OR p.nombres LIKE ? OR p.curp LIKE ?)";
+        $termino = "%" . $palabra . "%";
+        array_push($parametros, $termino, $termino, $termino, $termino);
+    }
 
     $sql = "
         SELECT
@@ -233,12 +246,7 @@ if ($idPacienteSolicitado !== "") {
         INNER JOIN CENSO c
             ON c.id_censo = pc.id_censo
         WHERE pc.id_unidad = ?
-          AND (
-            p.ap_pat LIKE ?
-            OR p.ap_mat LIKE ?
-            OR p.nombres LIKE ?
-            OR p.curp LIKE ?
-          )
+          AND " . implode(" AND ", $condiciones) . "
         ORDER BY
             p.ap_pat,
             p.ap_mat,
@@ -250,8 +258,11 @@ if ($idPacienteSolicitado !== "") {
         die("Error al preparar la búsqueda: " . $conexion->error);
     }
 
-    $stmt->bind_param("issss", $idUnidad, $termino, $termino, $termino, $termino);
-    $stmt->execute();
+    $tipos = "i" . str_repeat("s", count($parametros) - 1);
+    $stmt->bind_param($tipos, ...$parametros);
+    if (!$stmt->execute()) {
+        die("Error al realizar la búsqueda: " . $stmt->error);
+    }
     $res = $stmt->get_result();
 
     while ($fila = $res->fetch_assoc()) {
@@ -611,7 +622,55 @@ foreach ($vacunasEsquema as $bio) {
         .pie-aclaracion-vacuna { padding: 5px 7px; font-size: 9px; line-height: 1.25; }
         .pie-aclaracion-vacuna p { margin: 3px 0; }
         @media (max-width: 900px) { .pie-notas { grid-template-columns: repeat(2, minmax(0, 1fr)); } .pie-bloque { border-bottom: 1px solid #777; } .pie-firmas { gap: 8px; } }
-        @media print { .pie-censo-oficial { break-inside: avoid; } }
+        @media print {
+            @page { size: 1189mm 841mm; margin: 8mm; }
+            .censo { font-size: 8px; }
+            .censo th { font-size: 7px; }
+            .censo col.col-numero { width: 22px; }
+            .censo col.col-nombre { width: 82px; }
+            .censo col.col-fecha { width: 24px; }
+            .censo col.col-dato-corto { width: 28px; }
+            .censo col.col-ubicacion { width: 54px; }
+            .censo col.col-clave { width: 32px; }
+            .censo col.col-localidad { width: 55px; }
+            .censo col.col-domicilio { width: 80px; }
+            .censo col.col-telefono { width: 65px; }
+            .censo col.col-vacuna { width: 42px; }
+            .censo col.col-observaciones { width: 110px; }
+            .censo col.columna-acciones { display: none; }
+            .censo th.encabezado-vertical {
+                writing-mode: vertical-rl;
+                height: 150px;
+                overflow-wrap: normal;
+                white-space: normal;
+                padding: 3px 1px;
+            }
+            .encabezado-formato-oficial,
+            .pie-censo-oficial,
+            .censo tbody {
+                break-inside: avoid;
+                page-break-inside: avoid;
+            }
+            .censo .encabezado-ubicacion,
+            .censo .encabezado-clave,
+            .censo .encabezado-nombre,
+            .censo .celda-clave,
+            .censo .celda-nombre {
+                width: auto;
+                min-width: 0;
+                white-space: normal;
+            }
+            .censo .clave-casillas td {
+                height: 12px;
+            }
+            .censo .observaciones {
+                min-width: 0;
+                max-width: none;
+            }
+            .aviso-admin {
+                display: none;
+            }
+        }
 </style>
 <link rel="stylesheet" href="../css/tema_reportes.css">
 </head>
@@ -637,8 +696,12 @@ foreach ($vacunasEsquema as $bio) {
             <?php endif; ?>
         </div>
 
-        <?php if (!$contextoUnidad["solo_consulta"]): ?>
+        <?php if (!$soloConsultaCenso): ?>
+        <?php if ($buscar !== "" && $idPacienteSolicitado === ""): ?>
         <a href="registrar.php" class="btn btn-verde">REGISTRAR NUEVO PACIENTE</a>
+        <?php else: ?>
+        <button type="button" class="btn btn-verde" disabled title="Realiza una búsqueda antes de registrar un paciente">REGISTRAR NUEVO PACIENTE</button>
+        <?php endif; ?>
         <?php endif; ?>
         <?php if ($idCenso > 0 && !$modoResultadosBusqueda && $idPacienteSolicitado === "" && $buscar === ""): ?>
         <button type="button" class="btn btn-azul" data-imprimir-censo>IMPRIMIR CENSO COMPLETO</button>
@@ -724,7 +787,7 @@ foreach ($vacunasEsquema as $bio) {
                                     >
                                         VER CENSO
                                     </a>
-                                    <?php if (!$contextoUnidad["solo_consulta"]): ?>
+                                    <?php if (!$soloConsultaCenso): ?>
                                         <a
                                             class="btn btn-censo"
                                             href="editar.php?id=<?php echo urlencode($resultadoPaciente["id_paciente"]); ?>"
@@ -783,6 +846,29 @@ foreach ($vacunasEsquema as $bio) {
 
         <div class="tabla-scroll">
             <table class="censo">
+                <colgroup>
+                    <col class="col-numero">
+                    <col span="3" class="col-nombre">
+                    <col span="3" class="col-fecha">
+                    <col span="6" class="col-dato-corto">
+                    <col class="col-ubicacion">
+                    <col class="col-clave">
+                    <col class="col-localidad">
+                    <col class="col-domicilio">
+                    <col class="col-dato-corto">
+                    <col class="col-domicilio">
+                    <col class="col-telefono">
+                    <?php if ($tipo === "10-19" || $tipo === "adultos"): ?>
+                        <col span="3" class="col-fecha">
+                    <?php endif; ?>
+                    <?php foreach ($vacunasEsquema as $bio): ?>
+                        <?php foreach ($bio["dosis"] as $dosis): ?>
+                            <col span="3" class="col-vacuna">
+                        <?php endforeach; ?>
+                    <?php endforeach; ?>
+                    <col class="col-observaciones">
+                    <col class="columna-acciones">
+                </colgroup>
                 <thead>
                     <tr>
                         <th rowspan="3">No.</th>
@@ -790,8 +876,8 @@ foreach ($vacunasEsquema as $bio) {
                         <th colspan="3">FECHA DE NACIMIENTO</th>
                         <th rowspan="3">EDAD</th>
                         <th rowspan="3">SEXO</th>
-                        <th rowspan="3">DERECHOHABIENCIA</th>
-                        <th rowspan="3">POBLACIÓN INDÍGENA Y AFROMEXICANA</th>
+                        <th rowspan="3" class="encabezado-vertical">DERECHOHABIENCIA</th>
+                        <th rowspan="3" class="encabezado-vertical">POBLACIÓN INDÍGENA Y AFROMEXICANA</th>
                         <th colspan="2">ESTATUS MIGRATORIO</th>
                         <th colspan="6">DOMICILIO</th>
                         <th rowspan="3">TELÉFONO</th>
@@ -817,8 +903,8 @@ foreach ($vacunasEsquema as $bio) {
                         <th>DÍA</th>
                         <th>MES</th>
                         <th>AÑO</th>
-                        <th>REGULAR</th>
-                        <th>IRREGULAR</th>
+                        <th class="encabezado-vertical">REGULAR</th>
+                        <th class="encabezado-vertical">IRREGULAR</th>
                         <th class="encabezado-ubicacion">UBICACIÓN GEOGRÁFICA DE RESIDENCIA</th>
                         <th class="encabezado-clave">CLAVE</th>
                         <th class="encabezado-nombre">NOMBRE</th>
@@ -843,13 +929,14 @@ foreach ($vacunasEsquema as $bio) {
 
                 </thead>
 
-                <tbody>
                 <?php if (count($pacientes) === 0): ?>
+                    <tbody>
                     <tr>
                         <td colspan="100" class="sin-resultados">
                             No se encontraron pacientes en este censo.
                         </td>
                     </tr>
+                    </tbody>
                 <?php endif; ?>
 
                 <?php
@@ -869,6 +956,7 @@ foreach ($vacunasEsquema as $bio) {
                     $filasBloque = $tipo === "0-9" ? 7 : 4;
                 ?>
 
+                    <tbody>
                     <!-- =========================================
                          FILA PRINCIPAL DEL PACIENTE
                     ========================================== -->
@@ -966,7 +1054,7 @@ foreach ($vacunasEsquema as $bio) {
                         </td>
 
                         <td rowspan="<?php echo $filasBloque; ?>" class="columna-acciones">
-                            <?php if (!$contextoUnidad["solo_consulta"]): ?>
+                            <?php if (!$soloConsultaCenso): ?>
                                 <a href="editar.php?id=<?php echo urlencode($idPaciente); ?>" class="btn-editar">EDITAR</a>
                             <?php else: ?>
                                 <span>CONSULTA</span>
@@ -1076,11 +1164,11 @@ foreach ($vacunasEsquema as $bio) {
 
                     <?php endif; ?>
 
+                    </tbody>
                 <?php
                     $numero++;
                 endforeach;
                 ?>
-                </tbody>
             </table>
         </div>
 
@@ -1154,7 +1242,7 @@ foreach ($vacunasEsquema as $bio) {
 <script>
 /* Los campos administrativos se conservan en el navegador, sin crear tablas en MySQL. */
 document.querySelectorAll("[data-editable-key]").forEach(function (campo) {
-    if (<?php echo $contextoUnidad["solo_consulta"] ? "true" : "false"; ?>) {
+    if (<?php echo $soloConsultaCenso ? "true" : "false"; ?>) {
         campo.contentEditable = "false";
         campo.setAttribute("aria-readonly", "true");
         return;

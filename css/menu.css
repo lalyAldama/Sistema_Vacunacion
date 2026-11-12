@@ -152,6 +152,11 @@
     --admin-acento-claro: #F0EDFA;
 }
 
+.menu-admin-unidades {
+    --admin-acento: #3F759D;
+    --admin-acento-claro: #E8F2FA;
+}
+
 .menu-admin-esquemas {
     --admin-acento: #B77932;
     --admin-acento-claro: #FBF0DF;

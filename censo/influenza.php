@@ -14,6 +14,7 @@ if (!isset($_SESSION['id_usuario'])) {
 require_once __DIR__ . '/../config/conexion.php';
 require_once __DIR__ . '/../config/unidad_contexto.php';
 $contextoUnidad = unidadObtenerContexto($conexion);
+$soloConsultaCenso = !unidadEsPersonalDeUnidad();
 $idUnidad = $contextoUnidad['id_unidad'];
 unidadAsegurarUnidadEnPacienteCenso($conexion);
 
@@ -516,7 +517,7 @@ if ($busqueda !== '') {
 </div>
 <script>
 document.querySelectorAll("#encabezadoEditable [data-edit-key]").forEach(function (campo) {
-    if (<?php echo $contextoUnidad["solo_consulta"] ? "true" : "false"; ?>) {
+    if (<?php echo $soloConsultaCenso ? "true" : "false"; ?>) {
         campo.contentEditable = "false";
         campo.setAttribute("aria-readonly", "true");
         return;

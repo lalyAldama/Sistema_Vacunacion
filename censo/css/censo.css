@@ -116,6 +116,14 @@ body {
     background: #216F6A;
 }
 
+button.btn-verde:disabled,
+button.btn-verde:disabled:hover {
+    background: #E0E0E0;
+    color: #595959;
+    cursor: not-allowed;
+    box-shadow: none;
+}
+
 .btn-censo {
     background: #35AFA8;
     color: #173F43;

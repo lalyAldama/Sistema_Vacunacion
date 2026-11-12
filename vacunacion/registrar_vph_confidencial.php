@@ -8,8 +8,8 @@ if (!isset($_SESSION["id_usuario"])) {
 
 require_once __DIR__ . "/../config/conexion.php";
 require_once __DIR__ . "/../config/unidad_contexto.php";
+unidadExigirPersonalDeUnidad();
 $contextoUnidad = unidadObtenerContexto($conexion);
-unidadExigirPermisoEscritura();
 $idUnidad = $contextoUnidad["id_unidad"];
 require_once __DIR__ . "/funciones_vph.php";
 asegurarEsquemaVph($conexion);
@@ -91,7 +91,7 @@ $valores = [
 $guardado = ($_GET["guardado"] ?? "") === "1";
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
-    unidadExigirPermisoEscritura();
+    unidadExigirPersonalDeUnidad();
     foreach ($valores as $campo => $predeterminado) {
         $valor = $_POST[$campo] ?? $predeterminado;
         $valores[$campo] = is_string($valor) ? $valor : $predeterminado;

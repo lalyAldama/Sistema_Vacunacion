@@ -8,7 +8,7 @@ if(!isset($_SESSION["id_usuario"])) {
 
 require_once "../config/conexion.php";
 require_once __DIR__ . "/../config/unidad_contexto.php";
-unidadExigirPermisoEscritura();
+unidadExigirPersonalDeUnidad();
 $contextoUnidad = unidadObtenerContexto($conexion);
 $idUnidad = $contextoUnidad["id_unidad"];
 unidadAsegurarUnidadEnPacienteCenso($conexion);
@@ -294,9 +294,32 @@ $idHepatitisB = buscarIdBiologicoPorAlias($biologicosArray, [
     "HEPATITIS B"
 ]);
 $idSr = buscarIdBiologicoPorAlias($biologicosArray, ["SR DOBLE VIRAL", "SR"]);
+$idSrp = buscarIdBiologicoPorAlias($biologicosArray, ["SRP", "SRP TRIPLE VIRAL", "TRIPLE VIRAL"]);
 $idVaricela = buscarIdBiologicoPorAlias($biologicosArray, ["VARICELA"]);
 $idHepatitisA = buscarIdBiologicoPorAlias($biologicosArray, ["HEPATITIS A"]);
 $categoriasVph = categoriasVph();
+$biologicosConPreguntaReemplazo = array_values(array_filter(
+    [$idHexavalente, $idTdpa],
+    static fn($id) => $id !== null
+));
+
+$nacimientoDosisCero = DateTimeImmutable::createFromFormat("!Y-m-d", (string)$paciente["fecha_nacimiento"]);
+if (!$nacimientoDosisCero || $nacimientoDosisCero->format("Y-m-d") !== $paciente["fecha_nacimiento"]) {
+    die("La fecha de nacimiento del paciente no es válida.");
+}
+$rangoDosisCero = ["inicio" => null, "fin" => null];
+for ($fecha = $nacimientoDosisCero; ; $fecha = $fecha->modify("+1 day")) {
+    $edad = $nacimientoDosisCero->diff($fecha);
+    if ($edad->y > 0) {
+        break;
+    }
+    if ($edad->m >= 6 && ($edad->m < 11 || $edad->d <= 29)) {
+        if ($rangoDosisCero["inicio"] === null) {
+            $rangoDosisCero["inicio"] = $fecha->format("Y-m-d");
+        }
+        $rangoDosisCero["fin"] = $fecha->format("Y-m-d");
+    }
+}
 
 $reemplazosPorBiologico = [];
 if ($idHexavalente !== null && $idDpt !== null) {
@@ -315,7 +338,7 @@ if ($idTdpa !== null && $idDpt !== null) {
 // =========================================================
 
 if($_SERVER["REQUEST_METHOD"] == "POST") {
-    unidadExigirPermisoEscritura();
+    unidadExigirPersonalDeUnidad();
 
     $id_biologico = $_POST["id_biologico"] ?? "";
     $id_esquema_biologico_dosis = $_POST["id_esquema_biologico_dosis"] ?? "";
@@ -356,11 +379,33 @@ if($_SERVER["REQUEST_METHOD"] == "POST") {
     if(
         empty($id_biologico) ||
         empty($id_esquema_biologico_dosis) ||
-        empty($fecha_aplicacion) ||
-        $dosis_cero === "" ||
-        !in_array($reemplazo, ["0", "1"], true)
+        empty($fecha_aplicacion)
     ) {
         die("Faltan datos obligatorios para registrar la aplicación.");
+    }
+
+    $fechaDosisCero = DateTimeImmutable::createFromFormat("!Y-m-d", (string)$fecha_aplicacion);
+    if (!$fechaDosisCero || $fechaDosisCero->format("Y-m-d") !== $fecha_aplicacion) {
+        die("La fecha de aplicación no es válida.");
+    }
+    $puedeSerDosisCero = $idSrp !== null
+        && (int)$id_biologico === $idSrp
+        && $fecha_aplicacion >= $rangoDosisCero["inicio"]
+        && $fecha_aplicacion <= $rangoDosisCero["fin"];
+    if ($puedeSerDosisCero && !in_array($dosis_cero, ["0", "1"], true)) {
+        die("Indique si la aplicación de SRP es dosis cero.");
+    }
+    if (!$puedeSerDosisCero && $dosis_cero !== "" && $dosis_cero !== "0") {
+        die("La dosis cero solo aplica a SRP entre los 6 meses y los 11 meses con 29 días.");
+    }
+    $dosis_cero = $puedeSerDosisCero ? (int)$dosis_cero : 0;
+
+    $preguntarReemplazo = in_array((int)$id_biologico, $biologicosConPreguntaReemplazo, true);
+    if ($preguntarReemplazo && !in_array($reemplazo, ["0", "1"], true)) {
+        die("Indique si habrá reemplazo de biológico.");
+    }
+    if (!$preguntarReemplazo && $reemplazo !== "" && $reemplazo !== "0") {
+        die("El reemplazo solo está disponible para hexavalente y Tdpa.");
     }
 
     if ($idVph !== null && (int)$id_biologico === $idVph) {
@@ -867,18 +912,18 @@ if($_SERVER["REQUEST_METHOD"] == "POST") {
                 <input type="date" name="fecha_aplicacion" id="fecha_aplicacion" value="<?php echo date('Y-m-d'); ?>" required>
             </div>
 
-            <div class="campo-vacuna">
+            <div id="seccion-dosis-cero" class="campo-vacuna" hidden>
                 <label for="dosis_cero">¿Dosis cero?</label>
-                <select name="dosis_cero" id="dosis_cero" required>
+                <select name="dosis_cero" id="dosis_cero" disabled>
                     <option value="">SELECCIONE</option>
                     <option value="0">NO</option>
                     <option value="1">SÍ</option>
                 </select>
             </div>
 
-            <div class="campo-vacuna">
+            <div id="seccion-reemplazo" class="campo-vacuna" hidden>
                 <label for="reemplazo">¿Habrá reemplazo de biológico?</label>
-                <select name="reemplazo" id="reemplazo" required>
+                <select name="reemplazo" id="reemplazo" disabled>
                     <option value="">SELECCIONE</option>
                     <option value="0">NO</option>
                     <option value="1">SÍ</option>
@@ -936,6 +981,12 @@ if($_SERVER["REQUEST_METHOD"] == "POST") {
 </main>
 
 <script>
+    const idBiologicoSrp = <?php
+        echo json_encode($idSrp, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
+    ?>;
+    const rangoDosisCero = <?php
+        echo json_encode($rangoDosisCero, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
+    ?>;
     const idBiologicoVph = <?php
         echo json_encode($idVph, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
     ?>;
@@ -986,6 +1037,10 @@ if($_SERVER["REQUEST_METHOD"] == "POST") {
 
     const reemplazosPorBiologico = <?php
         echo json_encode($reemplazosPorBiologico, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
+    ?>;
+
+    const biologicosConPreguntaReemplazo = <?php
+        echo json_encode($biologicosConPreguntaReemplazo, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
     ?>;
 
     const presentacionesPorBiologico = <?php

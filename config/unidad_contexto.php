@@ -90,6 +90,19 @@ function unidadExigirPermisoEscritura(): void
     }
 }
 
+function unidadEsPersonalDeUnidad(): bool
+{
+    return ($_SESSION["nombre_rol"] ?? "") === "Personal de unidad";
+}
+
+function unidadExigirPersonalDeUnidad(): void
+{
+    if (!unidadEsPersonalDeUnidad()) {
+        http_response_code(403);
+        exit("Esta función está disponible únicamente para el personal de unidad.");
+    }
+}
+
 function unidadAsegurarUnidadEnPacienteCenso(mysqli $conexion): void
 {
     $resultado = $conexion->query(

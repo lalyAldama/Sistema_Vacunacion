@@ -2,10 +2,13 @@ const vacuna = document.getElementById("vacuna");
 const dosis = document.getElementById("dosis");
 const lote = document.getElementById("lote");
 const etiquetaLote = document.getElementById("etiqueta-lote");
+const seccionReemplazo = document.getElementById("seccion-reemplazo");
 const reemplazo = document.getElementById("reemplazo");
 const datosReemplazo = document.getElementById("datos-reemplazo");
 const biologicoReemplazo = document.getElementById("biologico-reemplazo");
 const motivoReemplazo = document.getElementById("motivo-reemplazo");
+const seccionDosisCero = document.getElementById("seccion-dosis-cero");
+const dosisCero = document.getElementById("dosis_cero");
 const seccionClasificacionVph = document.getElementById("seccion-clasificacion-vph");
 const clasificacionVph = document.getElementById("clasificacion-vph");
 const seccionClasificacionHepatitisB = document.getElementById("seccion-clasificacion-hepatitis-b");
@@ -15,6 +18,20 @@ const clasificacionSr = document.getElementById("clasificacion-sr");
 const seccionClasificacionVaricelaHepatitisA = document.getElementById("seccion-clasificacion-varicela-hepatitis-a");
 const clasificacionVaricelaHepatitisA = document.getElementById("clasificacion-varicela-hepatitis-a");
 const fechaAplicacion = document.getElementById("fecha_aplicacion");
+
+function actualizarDosisCero() {
+    const corresponde = idBiologicoSrp !== null
+        && String(vacuna.value) === String(idBiologicoSrp)
+        && fechaAplicacion.value !== ""
+        && fechaAplicacion.value >= rangoDosisCero.inicio
+        && fechaAplicacion.value <= rangoDosisCero.fin;
+    seccionDosisCero.hidden = !corresponde;
+    dosisCero.disabled = !corresponde;
+    dosisCero.required = corresponde;
+    if (!corresponde) {
+        dosisCero.value = "";
+    }
+}
 
 function actualizarClasificacionVph() {
     const esVph = String(vacuna.value) === String(idBiologicoVph);
@@ -222,13 +239,27 @@ function actualizarModoReemplazo() {
         cargarBiologicosReemplazo();
     } else {
         biologicoReemplazo.value = "";
+        motivoReemplazo.value = "";
     }
     actualizarLotes();
+}
+
+function actualizarPreguntaReemplazo() {
+    const preguntar = biologicosConPreguntaReemplazo.some(function(id) {
+        return String(id) === String(vacuna.value);
+    });
+    seccionReemplazo.hidden = !preguntar;
+    reemplazo.disabled = !preguntar;
+    reemplazo.required = preguntar;
+    reemplazo.value = "";
+    actualizarModoReemplazo();
 }
 
 vacuna.addEventListener("change", function() {
     const idBiologico = this.value;
     dosis.innerHTML = "";
+    actualizarPreguntaReemplazo();
+    actualizarDosisCero();
 
     if (idBiologico === "") {
         dosis.disabled = true;
@@ -237,8 +268,6 @@ vacuna.addEventListener("change", function() {
                 PRIMERO SELECCIONE UNA VACUNA
             </option>
         `;
-        cargarBiologicosReemplazo();
-        actualizarLotes();
         actualizarClasificacionVph();
         actualizarClasificacionHepatitisB();
         actualizarClasificacionSr();
@@ -261,10 +290,6 @@ vacuna.addEventListener("change", function() {
         }
     });
 
-    if (reemplazo.value === "1") {
-        cargarBiologicosReemplazo();
-    }
-    actualizarLotes();
     actualizarClasificacionVph();
     actualizarClasificacionHepatitisB();
     actualizarClasificacionSr();
@@ -275,6 +300,9 @@ reemplazo.addEventListener("change", actualizarModoReemplazo);
 biologicoReemplazo.addEventListener("change", actualizarLotes);
 dosis.addEventListener("change", actualizarClasificacionHepatitisB);
 fechaAplicacion.addEventListener("change", actualizarClasificacionHepatitisB);
+fechaAplicacion.addEventListener("change", actualizarDosisCero);
+actualizarPreguntaReemplazo();
+actualizarDosisCero();
 actualizarClasificacionVph();
 actualizarClasificacionHepatitisB();
 actualizarClasificacionSr();

@@ -487,7 +487,8 @@ $prefijosFamilia = [
     "dpt" => ["dpt_", "tdpa_dpt_"],
     "rotavirus" => ["rota_"],
     "neumococo20" => ["neumo20_"],
-    "neumococo" => ["neumo_", "neumo23_"],
+    "neumococo23" => ["neumo23_"],
+    "neumococo" => ["neumo_"],
     "srp" => ["srp_"],
     "sr" => ["sr_"],
     "vph" => ["vph_"],
@@ -611,14 +612,29 @@ while ($aplicacion = $resultadoAplicaciones->fetch_assoc()) {
         "jornalero_agricola" => (int)$aplicacion["jornalero_agricola"] === 1
     ];
     $familia = null;
+    $biologicoCompacto = preg_replace('/[^a-z0-9]/', '', $nombreBiologico);
+    if (str_contains($biologicoCompacto, "neumococ") || str_contains($biologicoCompacto, "prevenar")) {
+        preg_match_all('/(?<!\d)(13|20|23)(?!\d)/', $biologicoCompacto, $valencias);
+        $valencias = array_unique($valencias[1]);
+        if (count($valencias) === 1) {
+            $familia = ["13" => "neumococo", "20" => "neumococo20", "23" => "neumococo23"][reset($valencias)];
+        } elseif (count($valencias) === 0 && str_contains($biologicoCompacto, "354neumococica")) {
+            $familia = "neumococo20";
+        } elseif (count($valencias) === 0 && (
+            str_contains($biologicoCompacto, "polisacarida")
+            || str_contains($biologicoCompacto, "poliscarida")
+        )) {
+            $familia = "neumococo23";
+        } elseif (count($valencias) === 0 && str_contains($biologicoCompacto, "antineumococicaconjugada")) {
+            $familia = "neumococo";
+        }
+    }
     foreach ([
         "bcg" => ["bcg"],
         "hepatitisb" => ["antihepatitisb", "antihepatitis b", "hepatitisb"],
         "hexavalente" => ["hexavalente"],
         "dpt" => ["dpt"],
         "rotavirus" => ["antirotavirus", "rotavirus"],
-        "neumococo20" => ["20valente", "prevenar20", "354neumococica"],
-        "neumococo" => ["antineumococicaconjugada", "antineumococicapoliscarida", "antineumococicapolisacarida"],
         "srp" => ["srp"],
         "sr" => ["dobleviral"],
         "vph" => ["vph"],
@@ -630,6 +646,9 @@ while ($aplicacion = $resultadoAplicaciones->fetch_assoc()) {
         "td" => ["td"],
         "influenza" => ["influenza"]
     ] as $familiaCandidata => $aliasList) {
+        if ($familia !== null) {
+            break;
+        }
         foreach ($aliasList as $alias) {
             $alias = normalizarEtiquetaPaloteo($alias);
             if (
@@ -1036,7 +1055,12 @@ while ($aplicacion = $resultadoAplicaciones->fetch_assoc()) {
         }
 
         $etiqueta = normalizarEtiquetaPaloteo($renglon["grupo"] . " " . $renglon["detalle"]);
-        $dosisEsperada = $obtenerDosisPaloteo($etiqueta);
+        $dosisEsperada = $obtenerDosisPaloteo(
+            in_array($familia, ["neumococo", "neumococo20"], true)
+                && str_contains($idRenglon, "_rescate")
+                ? $renglon["detalle"]
+                : $etiqueta
+        );
         if ($dosisEsperada !== "" && $dosisEsperada !== $codigoDosis) {
             continue;
         }

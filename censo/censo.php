@@ -15,7 +15,7 @@ if($_SERVER["REQUEST_METHOD"] !== "POST") {
     exit();
 }
 
-unidadExigirPermisoEscritura();
+unidadExigirPersonalDeUnidad();
 $contextoUnidad = unidadObtenerContexto($conexion);
 $idUnidad = $contextoUnidad["id_unidad"];
 unidadAsegurarUnidadEnPacienteCenso($conexion);

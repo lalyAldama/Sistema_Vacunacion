@@ -180,6 +180,7 @@ if ($esRolCoordinador) {
                     <span class="menu-flecha">›</span>
                 </a>
 
+                <?php if ($rol === "Personal de unidad") { ?>
                 <a class="menu-tarjeta rojo" href="vacunacion/index.php">
                     <span class="menu-icono"><img src="iconos_menu/03_aplicacion_vacunas.png" alt=""></span>
                     <span class="menu-texto">
@@ -187,6 +188,7 @@ if ($esRolCoordinador) {
                     </span>
                     <span class="menu-flecha">›</span>
                 </a>
+                <?php } ?>
 
                   <a class="menu-tarjeta morado" href="paloteo/paloteo_general.php">
                     <span class="menu-icono"><img src="iconos_menu/04_paloteo.png" alt=""></span>
