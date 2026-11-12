@@ -12,6 +12,10 @@ if (!isset($_SESSION['id_usuario'])) {
 }
 
 require_once __DIR__ . '/../config/conexion.php';
+require_once __DIR__ . '/../config/unidad_contexto.php';
+$contextoUnidad = unidadObtenerContexto($conexion);
+$idUnidad = $contextoUnidad['id_unidad'];
+unidadAsegurarUnidadEnPacienteCenso($conexion);
 
 if (!isset($conexion) || !($conexion instanceof mysqli)) {
     http_response_code(500);
@@ -28,7 +32,9 @@ if (array_key_exists('historico_fecha', $_GET)) {
         0,
         'CENSO NOMINAL DE INFLUENZA',
         'influenza.php',
-        is_string($_GET['historico_fecha']) ? $_GET['historico_fecha'] : ''
+        is_string($_GET['historico_fecha']) ? $_GET['historico_fecha'] : '',
+        false,
+        $idUnidad
     );
     exit;
 }
@@ -136,8 +142,20 @@ $sqlPacientes = "SELECT p.id_paciente, p.ap_pat, p.ap_mat, p.nombres,
                         p.telefono_paciente, p.embarazo, p.personal_salud,
                         p.derechoabiencia
                  FROM PACIENTE p
+                 INNER JOIN PACIENTE_CENSO pc ON pc.id_paciente = p.id_paciente
+                 WHERE pc.id_unidad = ?
                  ORDER BY p.ap_pat, p.ap_mat, p.nombres";
-$resultado = $conexion->query($sqlPacientes);
+$stmtPacientes = $conexion->prepare($sqlPacientes);
+if (!$stmtPacientes) {
+    http_response_code(500);
+    exit('No se pudo preparar la consulta de pacientes: ' . $conexion->error);
+}
+$stmtPacientes->bind_param('i', $idUnidad);
+if (!$stmtPacientes->execute()) {
+    http_response_code(500);
+    exit('No se pudieron consultar los pacientes: ' . $stmtPacientes->error);
+}
+$resultado = $stmtPacientes->get_result();
 if (!$resultado) {
     $error = 'No se pudieron consultar los pacientes: ' . $conexion->error;
 } else {
@@ -186,10 +204,11 @@ if (!$resultado) {
     }
     $resultado->free();
 }
+$stmtPacientes->close();
 
 // Buscar aplicaciones relacionadas con biológicos cuyo nombre incluya INFLUENZA, COVID o NEUMO.
 // Los nombres se identifican desde BIOLOGICO, sin asumir IDs fijos del catálogo.
-function obtenerAplicaciones(mysqli $conexion, string $idPaciente): array {
+function obtenerAplicaciones(mysqli $conexion, string $idPaciente, int $idUnidad): array {
     $sql = "SELECT av.fecha_aplicacion, av.dosis_cero, av.observaciones,
                    b.nombre_biologico, d.nombre_dosis, l.numero_lote
             FROM APLICACION_VACUNA av
@@ -201,15 +220,24 @@ function obtenerAplicaciones(mysqli $conexion, string $idPaciente): array {
             INNER JOIN DOSIS d ON d.id_dosis = ebd.id_dosis
             LEFT JOIN LOTE l ON l.id_lote = av.id_lote
             WHERE av.id_paciente = ?
+              AND av.id_unidad = ?
               AND (UPPER(b.nombre_biologico) LIKE '%INFLUENZA%'
                    OR UPPER(b.nombre_biologico) LIKE '%COVID%'
                    OR UPPER(b.nombre_biologico) LIKE '%NEUMO%')
             ORDER BY av.fecha_aplicacion DESC";
     $lista = [];
     $stmt = $conexion->prepare($sql);
-    if (!$stmt) return $lista;
-    $stmt->bind_param('s', $idPaciente);
-    $stmt->execute();
+    if (!$stmt) {
+        http_response_code(500);
+        exit('No se pudo preparar la consulta de aplicaciones: ' . $conexion->error);
+    }
+    $stmt->bind_param('si', $idPaciente, $idUnidad);
+    if (!$stmt->execute()) {
+        http_response_code(500);
+        $error = $stmt->error;
+        $stmt->close();
+        exit('No se pudieron consultar las aplicaciones: ' . $error);
+    }
     $res = $stmt->get_result();
     while ($fila = $res->fetch_assoc()) $lista[] = $fila;
     $stmt->close();
@@ -336,7 +364,7 @@ if ($busqueda !== '') {
             </div>
             <div class="bloque-admin-influenza">
                 <div class="dato-admin-influenza"><span>LOCALIDAD</span><strong class="admin-valor" contenteditable="true" data-edit-key="localidad">HIDALGO DEL PARRAL</strong></div>
-                <div class="dato-admin-influenza"><span>UNIDAD DE SALUD</span><strong class="admin-valor" contenteditable="true" data-edit-key="unidad">________________</strong></div>
+                <div class="dato-admin-influenza"><span>UNIDAD DE SALUD</span><strong class="admin-valor" contenteditable="true" data-edit-key="unidad"><?= h($contextoUnidad['nombre_unidad']) ?></strong></div>
             </div>
             <div class="datos-inferiores-influenza">
                 <div class="dato-admin-influenza"><span>AGEB</span><strong class="admin-valor" contenteditable="true" data-edit-key="ageb">__________</strong></div>
@@ -390,7 +418,7 @@ if ($busqueda !== '') {
         <?php else: ?>
             <?php foreach ($pacientes as $i => $p): ?>
                 <?php
-                    $apps = obtenerAplicaciones($conexion, $p['id_paciente']);
+                    $apps = obtenerAplicaciones($conexion, $p['id_paciente'], $idUnidad);
                     $fechaNac = $p['fecha_nacimiento'] ?? '';
                     $tsNac = $fechaNac ? strtotime($fechaNac) : false;
                     $diaNac = $tsNac ? date('d', $tsNac) : '';
@@ -488,18 +516,14 @@ if ($busqueda !== '') {
 </div>
 <script>
 document.querySelectorAll("#encabezadoEditable [data-edit-key]").forEach(function (campo) {
-    var clave = "censo_admin_influenza_" + campo.getAttribute("data-edit-key");
+    if (<?php echo $contextoUnidad["solo_consulta"] ? "true" : "false"; ?>) {
+        campo.contentEditable = "false";
+        campo.setAttribute("aria-readonly", "true");
+        return;
+    }
+    var clave = "censo_admin_influenza_<?php echo $idUnidad; ?>_" + campo.getAttribute("data-edit-key");
     try {
         var guardado = localStorage.getItem(clave);
-        if (guardado === null) {
-            var anterior = localStorage.getItem(
-                "censo_influenza_encabezado_v1_" + campo.getAttribute("data-edit-key")
-            );
-            if (anterior !== null) {
-                guardado = new DOMParser().parseFromString(anterior, "text/html").body.textContent;
-                localStorage.setItem(clave, guardado);
-            }
-        }
         if (guardado !== null) campo.textContent = guardado;
     } catch (error) {}
     campo.addEventListener("input", function () {

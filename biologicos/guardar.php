@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . "/../config/seguridad_administrador.php";
 require_once "../config/conexion.php";
 
 //Nuevo biologico
@@ -28,13 +29,23 @@ if(isset($_POST['guardar'])) {
 <html lang="es">
     <head>
         <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Nuevo Biologico</title>
         <link rel="stylesheet" href="../css/estilos.css">
+        <link rel="stylesheet" href="../css/gestion_admin.css">
     </head>
 
-    <body>
-        <h1>Nuevo Biologico</h1>
-        <form action="guardar.php" method="POST">
+    <body class="gestion-admin">
+        <main class="gestion-contenedor">
+        <header class="gestion-encabezado">
+            <div class="gestion-encabezado-texto">
+                <span class="gestion-etiqueta">ADMINISTRACIÓN · BIOLÓGICOS</span>
+                <h1>Nuevo biológico</h1>
+                <p>Registra un biológico en el catálogo del sistema.</p>
+            </div>
+            <a class="gestion-volver" href="index.php">Volver al catálogo</a>
+        </header>
+        <form class="gestion-formulario" action="guardar.php" method="POST">
             <label>Nombre del biológico</label>
             <input type="text" name="nombre_biologico" required>
             <br><br>
@@ -43,11 +54,8 @@ if(isset($_POST['guardar'])) {
                 Guardar biológico
             </button>
 
-            <a href="index.php">
-            <button type="button">
-                Cancelar
-            </button>
-            </a>
+            <a class="btn gestion-btn-secundario" href="index.php">Cancelar</a>
         </form>
+        </main>
     </body>
 </html>

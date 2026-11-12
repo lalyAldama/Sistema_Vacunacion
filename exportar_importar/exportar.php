@@ -7,7 +7,7 @@ if (!isset($_SESSION["id_usuario"])) {
 }
 if (($_SESSION["nombre_rol"] ?? "") !== "Personal de unidad") {
     http_response_code(403);
-    exit("Esta función está disponible para personal de unidad.");
+    exit("La exportación está disponible únicamente para el personal de unidad.");
 }
 if ($_SERVER["REQUEST_METHOD"] !== "POST") {
     http_response_code(405);
@@ -16,6 +16,10 @@ if ($_SERVER["REQUEST_METHOD"] !== "POST") {
 }
 
 require_once __DIR__ . "/../config/conexion.php";
+require_once __DIR__ . "/../config/unidad_contexto.php";
+$contextoUnidad = unidadObtenerContexto($conexion);
+require_once __DIR__ . "/funciones.php";
+$uuidInstalacion = asegurarEsquemaExportacionUnidad($conexion);
 
 $contrasenaPaquete = $_POST["contrasena_paquete"] ?? null;
 $confirmarContrasena = $_POST["confirmar_contrasena"] ?? null;
@@ -32,26 +36,8 @@ if (
     exit("La contraseña no es válida o las dos entradas no coinciden.");
 }
 
-$stmtUnidad = $conexion->prepare(
-    "SELECT u.id_unidad, un.nombre_unidad
-     FROM USUARIO u
-     INNER JOIN UNIDAD un ON un.id_unidad = u.id_unidad
-     WHERE u.id_usuario = ?"
-);
-if (!$stmtUnidad) {
-    die("Error al consultar la unidad de origen: " . $conexion->error);
-}
-$idUsuarioSesion = (int)$_SESSION["id_usuario"];
-$stmtUnidad->bind_param("i", $idUsuarioSesion);
-if (!$stmtUnidad->execute()) {
-    die("Error al consultar la unidad de origen: " . $stmtUnidad->error);
-}
-$unidadOrigen = $stmtUnidad->get_result()->fetch_assoc();
-$stmtUnidad->close();
-if (!$unidadOrigen) {
-    http_response_code(400);
-    exit("El usuario no tiene una unidad asignada.");
-}
+$unidadOrigen = $contextoUnidad;
+$idUnidadOrigen = $contextoUnidad["id_unidad"];
 
 $tokenEsperado = hash_hmac(
     "sha256",
@@ -62,6 +48,7 @@ if (!hash_equals($tokenEsperado, $tokenRecibido)) {
     http_response_code(400);
     exit("La solicitud de exportación venció. Regresa e inténtalo de nuevo.");
 }
+unidadAsegurarUnidadEnPacienteCenso($conexion);
 
 $existeTabla = function ($nombreTabla) use ($conexion) {
     $stmt = $conexion->prepare(
@@ -80,6 +67,10 @@ $existeTabla = function ($nombreTabla) use ($conexion) {
     $stmt->close();
     return $existe;
 };
+if ($existeTabla("CENSO_HISTORIAL")) {
+    require_once __DIR__ . "/../censo/historial.php";
+    censoHistorialAsegurarTabla($conexion);
+}
 
 $consultasCatalogo = [
     "ESQUEMA" => "SELECT id_esquema, nombre_esquema FROM ESQUEMA ORDER BY id_esquema",
@@ -91,22 +82,57 @@ $consultasCatalogo = [
     "COMORBILIDAD" => "SELECT id_comorbilidad, nombre_comorbilidad FROM COMORBILIDAD ORDER BY id_comorbilidad",
     "JERINGA" => "SELECT id_jeringa, tipo FROM JERINGA ORDER BY id_jeringa"
 ];
+$filtroVphLotes = $existeTabla("APLICACION_VPH_ANONIMA")
+    ? " OR EXISTS (SELECT 1 FROM APLICACION_VPH_ANONIMA aa WHERE aa.id_lote = l.id_lote AND aa.id_unidad = {$idUnidadOrigen})"
+    : "";
 $consultasDatos = [
-    "TUTOR" => "SELECT * FROM TUTOR ORDER BY id_tutor",
-    "PACIENTE" => "SELECT * FROM PACIENTE ORDER BY id_paciente",
-    "PACIENTE_CENSO" => "SELECT * FROM PACIENTE_CENSO ORDER BY id_paciente_censo",
-    "PACIENTE_COMORBILIDAD" => "SELECT * FROM PACIENTE_COMORBILIDAD ORDER BY id_paciente_comorbilidad",
+    "TUTOR" => "SELECT t.* FROM TUTOR t
+                WHERE EXISTS (
+                    SELECT 1 FROM PACIENTE p
+                    INNER JOIN PACIENTE_CENSO pc ON pc.id_paciente = p.id_paciente
+                    WHERE p.id_tutor = t.id_tutor AND pc.id_unidad = {$idUnidadOrigen}
+                )
+                ORDER BY t.id_tutor",
+    "PACIENTE" => "SELECT p.* FROM PACIENTE p
+                   WHERE EXISTS (
+                       SELECT 1 FROM PACIENTE_CENSO pc
+                       WHERE pc.id_paciente = p.id_paciente AND pc.id_unidad = {$idUnidadOrigen}
+                   )
+                   ORDER BY p.id_paciente",
+    "PACIENTE_CENSO" => "SELECT * FROM PACIENTE_CENSO WHERE id_unidad = {$idUnidadOrigen} ORDER BY id_paciente_censo",
+    "PACIENTE_COMORBILIDAD" => "SELECT pcm.* FROM PACIENTE_COMORBILIDAD pcm
+                                INNER JOIN PACIENTE_CENSO pc ON pc.id_paciente = pcm.id_paciente
+                                WHERE pc.id_unidad = {$idUnidadOrigen}
+                                ORDER BY pcm.id_paciente_comorbilidad",
     "PRESENTACION" => "SELECT * FROM PRESENTACION ORDER BY id_presentacion",
-    "LOTE" => "SELECT * FROM LOTE ORDER BY id_lote",
-    "APLICACION_VACUNA" => "SELECT * FROM APLICACION_VACUNA WHERE id_unidad = " . (int)$unidadOrigen["id_unidad"] . " ORDER BY id_aplicacion_vacuna",
-    "APLICACION_VPH_ANONIMA" => "SELECT id_aplicacion_vph_anonima, id_esquema_biologico_dosis, id_lote, id_unidad, id_usuario AS id_usuario_origen, fecha_aplicacion, clasificacion_vph, es_migrante, creado_en FROM APLICACION_VPH_ANONIMA WHERE id_unidad = " . (int)$unidadOrigen["id_unidad"] . " ORDER BY id_aplicacion_vph_anonima",
-    "MOVIMIENTO_BIOLOGICO" => "SELECT * FROM MOVIMIENTO_BIOLOGICO WHERE id_unidad = " . (int)$unidadOrigen["id_unidad"] . " ORDER BY id_movimiento",
-    "MOVIMIENTO_JERINGA" => "SELECT * FROM MOVIMIENTO_JERINGA WHERE id_unidad = " . (int)$unidadOrigen["id_unidad"] . " ORDER BY id_movimiento_jeringa",
-    "PALOTEO_GENERAL" => "SELECT id_paloteo, id_unidad, anio, mes, datos_json, id_usuario AS id_usuario_origen, actualizado_en FROM PALOTEO_GENERAL WHERE id_unidad = " . (int)$unidadOrigen["id_unidad"] . " ORDER BY id_paloteo",
-    "PALOTEO_INFLUENZA" => "SELECT id_paloteo, id_unidad, anio, mes, datos_json, id_usuario AS id_usuario_origen, actualizado_en FROM PALOTEO_INFLUENZA WHERE id_unidad = " . (int)$unidadOrigen["id_unidad"] . " ORDER BY id_paloteo",
-    "PALOTEO_COVID" => "SELECT id_paloteo, id_unidad, anio, mes, datos_json, id_usuario AS id_usuario_origen, actualizado_en FROM PALOTEO_COVID WHERE id_unidad = " . (int)$unidadOrigen["id_unidad"] . " ORDER BY id_paloteo",
-    "INFORME_ANUAL_META" => "SELECT id_unidad, anio, clave, meta, id_usuario AS id_usuario_origen, actualizado_en FROM INFORME_ANUAL_META WHERE id_unidad = " . (int)$unidadOrigen["id_unidad"] . " ORDER BY anio, clave",
-    "CENSO_HISTORIAL" => "SELECT id_historial, tipo_reporte, id_censo, fecha_captura, hash_contenido, TO_BASE64(contenido) AS contenido_base64 FROM CENSO_HISTORIAL ORDER BY id_historial",
+    "LOTE" => "SELECT l.* FROM LOTE l
+               WHERE EXISTS (
+                   SELECT 1 FROM MOVIMIENTO_BIOLOGICO mb
+                   WHERE mb.id_lote = l.id_lote
+                     AND (mb.id_unidad = {$idUnidadOrigen} OR mb.id_unidad_receptora = {$idUnidadOrigen})
+               )
+               OR EXISTS (
+                   SELECT 1 FROM APLICACION_VACUNA av
+                   WHERE av.id_lote = l.id_lote AND av.id_unidad = {$idUnidadOrigen}
+               ){$filtroVphLotes}
+               ORDER BY l.id_lote",
+    "APLICACION_VACUNA" => "SELECT av.* FROM APLICACION_VACUNA av
+                            INNER JOIN PACIENTE_CENSO pc ON pc.id_paciente = av.id_paciente
+                            WHERE av.id_unidad = {$idUnidadOrigen} AND pc.id_unidad = {$idUnidadOrigen}
+                            ORDER BY av.id_aplicacion_vacuna",
+    "APLICACION_VPH_ANONIMA" => "SELECT id_aplicacion_vph_anonima, id_esquema_biologico_dosis, id_lote, id_unidad, id_usuario AS id_usuario_origen, fecha_aplicacion, clasificacion_vph, es_migrante, creado_en FROM APLICACION_VPH_ANONIMA WHERE id_unidad = {$idUnidadOrigen} ORDER BY id_aplicacion_vph_anonima",
+    "MOVIMIENTO_BIOLOGICO" => "SELECT * FROM MOVIMIENTO_BIOLOGICO
+                               WHERE id_unidad = {$idUnidadOrigen}
+                                  OR (tipo_movimiento = 'Donación' AND id_unidad_receptora = {$idUnidadOrigen})
+                               ORDER BY id_movimiento",
+    "MOVIMIENTO_JERINGA" => "SELECT * FROM MOVIMIENTO_JERINGA WHERE id_unidad = {$idUnidadOrigen} ORDER BY id_movimiento_jeringa",
+    "PALOTEO_GENERAL" => "SELECT id_paloteo, id_unidad, anio, mes, datos_json, id_usuario AS id_usuario_origen, actualizado_en FROM PALOTEO_GENERAL WHERE id_unidad = {$idUnidadOrigen} ORDER BY id_paloteo",
+    "PALOTEO_INFLUENZA" => "SELECT id_paloteo, id_unidad, anio, mes, datos_json, id_usuario AS id_usuario_origen, actualizado_en FROM PALOTEO_INFLUENZA WHERE id_unidad = {$idUnidadOrigen} ORDER BY id_paloteo",
+    "PALOTEO_COVID" => "SELECT id_paloteo, id_unidad, anio, mes, datos_json, id_usuario AS id_usuario_origen, actualizado_en FROM PALOTEO_COVID WHERE id_unidad = {$idUnidadOrigen} ORDER BY id_paloteo",
+    "INFORME_ANUAL_META" => "SELECT id_unidad, anio, clave, meta, id_usuario AS id_usuario_origen, actualizado_en FROM INFORME_ANUAL_META WHERE id_unidad = {$idUnidadOrigen} ORDER BY anio, clave",
+    "INFORME_ANUAL_ENCABEZADO" => "SELECT id_unidad, clave, valor, id_usuario AS id_usuario_origen, actualizado_en FROM INFORME_ANUAL_ENCABEZADO WHERE id_unidad = {$idUnidadOrigen} ORDER BY clave",
+    "CENSO_CONFIGURACION" => "SELECT id_censo, edad_minima, edad_maxima, sexo, embarazo, poblacion_indigena_afromexicana, migrante, personal_salud, jornalero_agricola FROM CENSO_CONFIGURACION ORDER BY id_censo",
+    "CENSO_HISTORIAL" => "SELECT id_historial, tipo_reporte, id_censo, id_unidad, fecha_captura, hash_contenido, TO_BASE64(contenido) AS contenido_base64 FROM CENSO_HISTORIAL WHERE id_unidad = {$idUnidadOrigen} ORDER BY id_historial",
     "UNIDAD" => "SELECT id_unidad, nombre_unidad FROM UNIDAD ORDER BY id_unidad"
 ];
 
@@ -122,6 +148,8 @@ $tablasOpcionales = [
     "PALOTEO_INFLUENZA",
     "PALOTEO_COVID",
     "INFORME_ANUAL_META",
+    "INFORME_ANUAL_ENCABEZADO",
+    "CENSO_CONFIGURACION",
     "CENSO_HISTORIAL"
 ];
 $datosCatalogos = [];
@@ -168,11 +196,12 @@ foreach ($datosUnidad as $tabla => $filas) {
 }
 $paquete = [
     "formato" => "sistema-vacunacion-unidad",
-    "version" => 1,
+    "version" => 2,
     "generado_en_utc" => gmdate("Y-m-d\TH:i:s\Z"),
     "unidad_origen" => [
         "id_local" => (int)$unidadOrigen["id_unidad"],
-        "nombre" => (string)$unidadOrigen["nombre_unidad"]
+        "nombre" => (string)$unidadOrigen["nombre_unidad"],
+        "uuid_instalacion" => $uuidInstalacion
     ],
     "registros_incluidos" => $registrosIncluidos,
     "catalogos" => $datosCatalogos,

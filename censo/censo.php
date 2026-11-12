@@ -7,10 +7,24 @@ if(!isset($_SESSION["id_usuario"])){
 }
 
 require_once "../config/conexion.php";
+require_once __DIR__ . "/../config/unidad_contexto.php";
+require_once __DIR__ . "/configuracion.php";
 
 if($_SERVER["REQUEST_METHOD"] !== "POST") {
     header("Location: registrar.php");
     exit();
+}
+
+unidadExigirPermisoEscritura();
+$contextoUnidad = unidadObtenerContexto($conexion);
+$idUnidad = $contextoUnidad["id_unidad"];
+unidadAsegurarUnidadEnPacienteCenso($conexion);
+
+try {
+    censoAsegurarTablaConfiguracion($conexion);
+} catch (RuntimeException $e) {
+    http_response_code(500);
+    exit($e->getMessage());
 }
 
 $conexion->begin_transaction();
@@ -266,15 +280,18 @@ try {
     $stmtPaciente->close();
 
     //ASIGNAR PACIENTE AL CENSO QUE LE CORRESPONDE.
-    if ($embarazo == 1 || $edad >=20){
-        $id_censo = 3;
-    } elseif ($edad >=10){
-        $id_censo = 2;
-    } else {
-        $id_censo= 1;
-    }
+    $id_censo = censoDeterminarId(
+        $conexion,
+        $fecha_nacimiento,
+        $sexo,
+        (int)$embarazo,
+        (int)$poblacion_indigena_afromexicana,
+        $estatus_migratorio === "No aplica" ? 0 : 1,
+        (int)$personal_salud,
+        (int)$jornalero_agricola
+    );
 
-    $sqlPacienteCenso = "INSERT INTO PACIENTE_CENSO (id_paciente, id_censo) VALUES(?,?)";
+    $sqlPacienteCenso = "INSERT INTO PACIENTE_CENSO (id_paciente, id_censo, id_unidad) VALUES(?,?,?)";
 
     $stmtPacienteCenso = $conexion->prepare($sqlPacienteCenso);
 
@@ -283,7 +300,7 @@ try {
     }
 
     $stmtPacienteCenso->bind_param(
-        "si", $id_paciente, $id_censo
+        "sii", $id_paciente, $id_censo, $idUnidad
     );
 
     if(!$stmtPacienteCenso->execute()){

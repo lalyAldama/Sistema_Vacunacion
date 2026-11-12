@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . "/../config/seguridad_administrador.php";
 require_once "../config/conexion.php";
 
 // Obtener el ID del biológico
@@ -56,15 +57,23 @@ $stmt->close();
 
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Editar Biológico</title>
     <link rel="stylesheet" href="../css/estilos.css">
+    <link rel="stylesheet" href="../css/gestion_admin.css">
 </head>
 
-<body>
-
-    <h1>Editar biológico</h1>
-
-    <form action="editar.php?id=<?php echo $biologico['id_biologico']; ?>" method="POST">
+<body class="gestion-admin">
+    <main class="gestion-contenedor">
+    <header class="gestion-encabezado">
+        <div class="gestion-encabezado-texto">
+            <span class="gestion-etiqueta">ADMINISTRACIÓN · BIOLÓGICOS</span>
+            <h1>Editar biológico</h1>
+            <p>Actualiza la información del catálogo.</p>
+        </div>
+        <a class="gestion-volver" href="index.php">Volver al catálogo</a>
+    </header>
+    <form class="gestion-formulario" action="editar.php?id=<?php echo $biologico['id_biologico']; ?>" method="POST">
 
         <label>Nombre del biológico</label>
 
@@ -79,14 +88,10 @@ $stmt->close();
             Guardar cambios
         </button>
 
-        <a href="index.php">
-            <button type="button">
-                Cancelar
-            </button>
-        </a>
+        <a class="btn gestion-btn-secundario" href="index.php">Cancelar</a>
 
     </form>
-
+    </main>
 </body>
 
 </html>

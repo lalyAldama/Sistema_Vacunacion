@@ -7,6 +7,10 @@ if (!isset($_SESSION["id_usuario"])) {
 }
 
 require_once "../config/conexion.php";
+require_once __DIR__ . "/../config/unidad_contexto.php";
+$contextoUnidad = unidadObtenerContexto($conexion);
+$idUnidad = $contextoUnidad["id_unidad"];
+$soloConsulta = $contextoUnidad["solo_consulta"];
 require_once __DIR__ . "/../vacunacion/funciones_vph.php";
 asegurarEsquemaVph($conexion);
 
@@ -18,7 +22,7 @@ $mesValido = is_string($mesSolicitado)
     && checkdate((int)$partes[2], 1, (int)$partes[1])
     && $mesSolicitado <= $mesActual;
 $mes = $mesValido ? $mesSolicitado : $mesActual;
-$puedeRegistrarMovimientos = $mes === $mesActual;
+$puedeRegistrarMovimientos = $mes === $mesActual && !$soloConsulta;
 $inicioMes = $mes . "-01";
 $finMes = date("Y-m-d", strtotime($inicioMes . " +1 month"));
 $inicioAnio = substr($mes, 0, 4) . "-01-01";
@@ -27,16 +31,6 @@ $meses = ["January"=>"enero", "February"=>"febrero", "March"=>"marzo", "April"=>
 $nombreMes = strtr($nombreMes, $meses);
 $nombreMesEncabezado = mb_strtoupper(strtr(date("F", strtotime($inicioMes)), $meses), "UTF-8");
 $anioEncabezado = substr($mes, 0, 4);
-
-$stmtUnidad = $conexion->prepare("SELECT id_unidad FROM USUARIO WHERE id_usuario = ?");
-$stmtUnidad->bind_param("i", $_SESSION["id_usuario"]);
-$stmtUnidad->execute();
-$unidad = $stmtUnidad->get_result()->fetch_assoc();
-$stmtUnidad->close();
-if (empty($unidad["id_unidad"])) {
-    die("El usuario no tiene una unidad asignada.");
-}
-$idUnidad = (int)$unidad["id_unidad"];
 
 function cargarFilas($conexion, $sql, $tipos = "", ...$params) {
     $stmt = $conexion->prepare($sql);

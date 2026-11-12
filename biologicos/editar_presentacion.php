@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . "/../config/seguridad_administrador.php";
 require_once "../config/conexion.php";
 
 // Obtener el ID de la presentación
@@ -82,15 +83,24 @@ $biologicos = $conexion->query($sql_biologicos);
 
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Editar Presentación</title>
     <link rel="stylesheet" href="../css/estilos.css">
+    <link rel="stylesheet" href="../css/gestion_admin.css">
 </head>
 
-<body>
+<body class="gestion-admin">
+    <main class="gestion-contenedor">
+    <header class="gestion-encabezado">
+        <div class="gestion-encabezado-texto">
+            <span class="gestion-etiqueta">ADMINISTRACIÓN · BIOLÓGICOS</span>
+            <h1>Editar presentación</h1>
+            <p>Actualiza los datos de esta presentación.</p>
+        </div>
+        <a class="gestion-volver" href="index.php">Volver al catálogo</a>
+    </header>
 
-    <h1>Editar presentación</h1>
-
-    <form action="editar_presentacion.php?id=<?php echo $presentacion['id_presentacion']; ?>" method="POST">
+    <form class="gestion-formulario" action="editar_presentacion.php?id=<?php echo $presentacion['id_presentacion']; ?>" method="POST">
 
 
         <!-- Biológico -->
@@ -170,14 +180,10 @@ $biologicos = $conexion->query($sql_biologicos);
         </button>
 
 
-        <a href="index.php">
-            <button type="button">
-                Cancelar
-            </button>
-        </a>
+        <a class="btn gestion-btn-secundario" href="index.php">Cancelar</a>
 
     </form>
-
+    </main>
 </body>
 
 </html>

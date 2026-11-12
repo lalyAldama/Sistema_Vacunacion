@@ -2,23 +2,15 @@
 
 require_once __DIR__ . "/seguridad.php";
 
-$servidor = "localhost";
-$usuario = "root";
-$contrasena = "123456789";
-$base_datos= "bd_unidad_vacunacion";
-
-$conexion = new mysqli(
-    $servidor,
-    $usuario,
-    $contrasena,
-    $base_datos
-);
-
-if ($conexion->connect_error) {
-    die ("Error de conexión:" .$conexion->connect_error);
-
+if (
+    !defined("FORZAR_CONEXION_LOCAL")
+    && in_array($_SESSION["nombre_rol"] ?? "", ["Administrador", "Supervisor"], true)
+) {
+    require_once __DIR__ . "/conexion_bd_central.php";
+    return;
 }
 
-$conexion->set_charset("utf8mb4");
+require_once __DIR__ . "/conexion_unidad.php";
+$conexion = conexionAbrirUnidad();
 
 ?>

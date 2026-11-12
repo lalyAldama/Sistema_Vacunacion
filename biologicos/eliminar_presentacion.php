@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . "/../config/seguridad_administrador.php";
 require_once "../config/conexion.php";
 
 // Obtener el ID de la presentación

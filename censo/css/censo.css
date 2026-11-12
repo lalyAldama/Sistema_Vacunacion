@@ -476,6 +476,11 @@ body {
 }
 
 @media print {
+    @page {
+        size: landscape;
+        margin: 8mm;
+    }
+
     body {
         background: #FFFFFF;
         padding: 0;
@@ -502,5 +507,28 @@ body {
 
     .tabla-scroll {
         overflow: visible;
+        border: 0;
+    }
+
+    .censo {
+        width: 100%;
+        min-width: 0;
+        table-layout: fixed;
+        font-size: 7px;
+    }
+
+    .censo th,
+    .censo td {
+        min-width: 0 !important;
+        padding: 1px;
+        overflow-wrap: anywhere;
+    }
+
+    .censo .columna-acciones {
+        display: none !important;
+    }
+
+    .censo thead {
+        display: table-header-group;
     }
 }

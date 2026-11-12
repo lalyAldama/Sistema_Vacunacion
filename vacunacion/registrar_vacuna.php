@@ -7,6 +7,11 @@ if(!isset($_SESSION["id_usuario"])) {
 }
 
 require_once "../config/conexion.php";
+require_once __DIR__ . "/../config/unidad_contexto.php";
+unidadExigirPermisoEscritura();
+$contextoUnidad = unidadObtenerContexto($conexion);
+$idUnidad = $contextoUnidad["id_unidad"];
+unidadAsegurarUnidadEnPacienteCenso($conexion);
 require_once __DIR__ . "/funciones_vph.php";
 asegurarEsquemaVph($conexion);
 asegurarClasificacionHepatitisB($conexion);
@@ -125,7 +130,7 @@ $sqlPaciente = "SELECT
                     ON pc.id_censo = c.id_censo
                 INNER JOIN ESQUEMA e
                     ON c.id_esquema = e.id_esquema
-                WHERE p.id_paciente = ?";
+                WHERE p.id_paciente = ? AND pc.id_unidad = ?";
 
 $stmtPaciente = $conexion->prepare($sqlPaciente);
 
@@ -133,7 +138,7 @@ if(!$stmtPaciente) {
     die("Error al preparar consulta del paciente: " . $conexion->error);
 }
 
-$stmtPaciente->bind_param("s", $id_paciente);
+$stmtPaciente->bind_param("si", $id_paciente, $idUnidad);
 $stmtPaciente->execute();
 
 $resultadoPaciente = $stmtPaciente->get_result();
@@ -306,42 +311,11 @@ if ($idTdpa !== null && $idDpt !== null) {
 
 
 // =========================================================
-// OBTENER UNIDAD DEL USUARIO
-// =========================================================
-
-$sqlUsuario = "SELECT
-                    u.id_unidad,
-                    un.nombre_unidad
-               FROM USUARIO u
-               LEFT JOIN UNIDAD un
-                    ON u.id_unidad = un.id_unidad
-               WHERE u.id_usuario = ?";
-
-$stmtUsuario = $conexion->prepare($sqlUsuario);
-
-if(!$stmtUsuario) {
-    die("Error al consultar unidad: " . $conexion->error);
-}
-
-$stmtUsuario->bind_param("i", $_SESSION["id_usuario"]);
-$stmtUsuario->execute();
-
-$resultadoUsuario = $stmtUsuario->get_result();
-
-$usuario = $resultadoUsuario->fetch_assoc();
-
-$stmtUsuario->close();
-
-if(empty($usuario["id_unidad"])) {
-    die("El usuario no tiene una unidad asignada.");
-}
-
-
-// =========================================================
 // GUARDAR APLICACIÓN
 // =========================================================
 
 if($_SERVER["REQUEST_METHOD"] == "POST") {
+    unidadExigirPermisoEscritura();
 
     $id_biologico = $_POST["id_biologico"] ?? "";
     $id_esquema_biologico_dosis = $_POST["id_esquema_biologico_dosis"] ?? "";
@@ -542,7 +516,7 @@ if($_SERVER["REQUEST_METHOD"] == "POST") {
             }
             if (
                 $clasificacionHepatitisB === "sin_antecedente"
-                && (new DateTimeImmutable($paciente["fecha_nacimiento"]))->diff(new DateTimeImmutable($fecha_aplicacion))->y <= 11
+                && (new DateTimeImmutable($paciente["fecha_nacimiento"]))->diff(new DateTimeImmutable($fecha_aplicacion))->y < 12
             ) {
                 die("La categoría sin antecedente vacunal de Hepatitis B corresponde a mayores de 11 años.");
             }
@@ -580,6 +554,7 @@ if($_SERVER["REQUEST_METHOD"] == "POST") {
         }
         $edadVph = $nacimientoVph->diff($aplicacionVph)->y;
         $rangosEdadVph = [
+            "primaria_11" => [11, 11],
             "rezagados" => [12, 16],
             "violencia_9_14" => [9, 14],
             "violencia_15_19" => [15, 19],
@@ -672,7 +647,7 @@ if($_SERVER["REQUEST_METHOD"] == "POST") {
         $existenciaVph = obtenerExistenciaVph(
             $conexion,
             (int)$id_lote,
-            (int)$usuario["id_unidad"]
+            $idUnidad
         );
         if (!$existenciaVph || (float)$existenciaVph["disponible"] <= 0) {
             die("El lote VPH seleccionado ya no tiene existencias para esta unidad.");
@@ -697,6 +672,37 @@ if($_SERVER["REQUEST_METHOD"] == "POST") {
         }
     }
 
+
+    // =====================================================
+    // VALIDAR QUE NO SE HAYA APLICADO LA MISMA DOSIS
+    // =====================================================
+
+    $sqlVerificarDuplicado = "SELECT COUNT(*) as cantidad
+                              FROM APLICACION_VACUNA
+                              WHERE id_paciente = ?
+                              AND id_esquema_biologico_dosis = ?";
+
+    $stmtVerificarDuplicado = $conexion->prepare($sqlVerificarDuplicado);
+
+    if(!$stmtVerificarDuplicado) {
+        die("Error al verificar dosis duplicada: " . $conexion->error);
+    }
+
+    $stmtVerificarDuplicado->bind_param(
+        "si",
+        $id_paciente,
+        $id_esquema_biologico_dosis
+    );
+
+    $stmtVerificarDuplicado->execute();
+
+    $resultadoVerificarDuplicado = $stmtVerificarDuplicado->get_result();
+    $filaVerificacion = $resultadoVerificarDuplicado->fetch_assoc();
+    $stmtVerificarDuplicado->close();
+
+    if($filaVerificacion["cantidad"] > 0) {
+        die("Esta dosis de la vacuna ya ha sido aplicada a este paciente.");
+    }
 
     // =====================================================
     // INSERTAR APLICACIÓN
@@ -729,7 +735,7 @@ if($_SERVER["REQUEST_METHOD"] == "POST") {
         $id_paciente,
         $id_esquema_biologico_dosis,
         $id_lote,
-        $usuario["id_unidad"],
+        $idUnidad,
         $id_biologico_indicado,
         $fecha_aplicacion,
         $clasificacionVph,

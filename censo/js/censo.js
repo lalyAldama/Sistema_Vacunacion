@@ -24,22 +24,9 @@ fechaNacimiento.addEventListener("change", function() {
 
     edad.textContent = años + " años";
 
-    if(años >= 0 && años <= 9){
-
-        tipoCenso.textContent = "0-9 años";
-
-    } else if(años >= 10 && años <= 19){
-
-        tipoCenso.textContent = "10-19 años";
-
-    } else if(años >= 20){
-
-        tipoCenso.textContent = "Adultos y Embarazadas";
-
-    } else {
-
-        tipoCenso.textContent = "--";
-    }
+    tipoCenso.textContent = años >= 0
+        ? "se asigna según los rangos y grupos configurados"
+        : "--";
 });
 
 
@@ -293,6 +280,5 @@ if(fechaNacimiento && fechaNacimiento.value){
     EsMigrante.dispatchEvent(new Event("change"));
     embarazo.dispatchEvent(new Event("change"));
 }
-
 
 

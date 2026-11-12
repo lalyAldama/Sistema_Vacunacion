@@ -7,6 +7,11 @@ if(!isset($_SESSION["id_usuario"])){
 }
 
 require_once "../config/conexion.php";
+require_once __DIR__ . "/../config/unidad_contexto.php";
+$contextoUnidad = unidadObtenerContexto($conexion);
+$idUnidad = $contextoUnidad["id_unidad"];
+$soloConsulta = $contextoUnidad["solo_consulta"];
+unidadAsegurarUnidadEnPacienteCenso($conexion);
 
 $resultados= null;
 $busqueda= "";
@@ -18,12 +23,15 @@ if(isset($_GET["buscar"])) {
     if($busqueda !== ""){
         $termino = "%" . $busqueda . "%";
 
-        $sql = "SELECT id_paciente, ap_pat, ap_mat, nombres, fecha_nacimiento, curp
-                FROM PACIENTE WHERE ap_pat LIKE ? OR ap_mat LIKE ? OR nombres LIKE ? OR curp LIKE ?
+        $sql = "SELECT DISTINCT p.id_paciente, p.ap_pat, p.ap_mat, p.nombres, p.fecha_nacimiento, p.curp
+                FROM PACIENTE p
+                INNER JOIN PACIENTE_CENSO pc ON pc.id_paciente = p.id_paciente
+                WHERE pc.id_unidad = ?
+                  AND (p.ap_pat LIKE ? OR p.ap_mat LIKE ? OR p.nombres LIKE ? OR p.curp LIKE ?)
                 ORDER BY  ap_pat, ap_mat, nombres";
         $stmt = $conexion->prepare($sql);
 
-        $stmt->bind_param( "ssss", $termino, $termino, $termino, $termino);
+        $stmt->bind_param("issss", $idUnidad, $termino, $termino, $termino, $termino);
         $stmt->execute();
         $resultados = $stmt->get_result();
     }
@@ -49,6 +57,7 @@ if(isset($_GET["buscar"])) {
                 </div>
             </header>
 
+            <?php if (!$soloConsulta): ?>
             <section class="opciones-registro" aria-label="Opciones de registro">
                 <article class="opcion-registro opcion-expediente">
                     <div class="encabezado-opcion">
@@ -94,6 +103,9 @@ if(isset($_GET["buscar"])) {
                     </a>
                 </article>
             </section>
+            <?php else: ?>
+                <p role="status">Modo de consulta: el administrador puede revisar pacientes de esta unidad, pero no registrar aplicaciones.</p>
+            <?php endif; ?>
 
             <?php if ($resultados !== null): ?>
                 <section class="resultados-registro" aria-labelledby="titulo-resultados">
@@ -123,9 +135,15 @@ if(isset($_GET["buscar"])) {
                                             <td><?php echo htmlspecialchars($paciente["fecha_nacimiento"]); ?></td>
                                             <td><?php echo htmlspecialchars($paciente["curp"] ?? ""); ?></td>
                                             <td>
+                                                <?php if ($soloConsulta): ?>
+                                                <a href="../censo/index.php?id_paciente=<?php echo urlencode($paciente["id_paciente"]); ?>" class="boton-tabla">
+                                                    Consultar expediente
+                                                </a>
+                                                <?php else: ?>
                                                 <a href="registrar_vacuna.php?id=<?php echo urlencode($paciente["id_paciente"]); ?>" class="boton-tabla">
                                                     Registrar aplicación
                                                 </a>
+                                                <?php endif; ?>
                                             </td>
                                         </tr>
                                     <?php endwhile; ?>

@@ -8,6 +8,10 @@ if(!isset($_SESSION["id_usuario"])) {
 }
 
 require_once "../config/conexion.php";
+require_once __DIR__ . "/../config/unidad_contexto.php";
+$contextoUnidad = unidadObtenerContexto($conexion);
+unidadExigirPermisoEscritura();
+$idUnidad = $contextoUnidad["id_unidad"];
 
 
 // =========================================================
@@ -46,6 +50,7 @@ if(!$lotes) {
 // =========================================================
 
 if($_SERVER["REQUEST_METHOD"] == "POST") {
+    unidadExigirPermisoEscritura();
 
     $id_lote = $_POST["id_lote"] ?? "";
     $cantidad_dosis = $_POST["cantidad_dosis"] ?? "";
@@ -120,41 +125,6 @@ if($_SERVER["REQUEST_METHOD"] == "POST") {
 
 
     // =====================================================
-    // OBTENER UNIDAD DEL USUARIO
-    // =====================================================
-
-    $sqlUsuario = "SELECT id_unidad
-                   FROM USUARIO
-                   WHERE id_usuario = ?";
-
-    $stmtUsuario = $conexion->prepare($sqlUsuario);
-
-    if(!$stmtUsuario) {
-        die("Error al consultar unidad: " . $conexion->error);
-    }
-
-    $stmtUsuario->bind_param(
-        "i",
-        $_SESSION["id_usuario"]
-    );
-
-    $stmtUsuario->execute();
-
-    $resultadoUsuario = $stmtUsuario->get_result();
-
-    $usuario = $resultadoUsuario->fetch_assoc();
-
-    $stmtUsuario->close();
-
-
-    if(empty($usuario["id_unidad"])) {
-
-        die("El usuario no tiene una unidad asignada.");
-
-    }
-
-
-    // =====================================================
     // REGISTRAR DESECHO
     // =====================================================
 
@@ -176,7 +146,7 @@ if($_SERVER["REQUEST_METHOD"] == "POST") {
 
     $stmtMovimiento->bind_param(
         "iisdisis",
-        $usuario["id_unidad"],
+        $idUnidad,
         $id_lote,
         $tipo_movimiento,
         $cantidad_frascos,

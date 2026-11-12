@@ -7,6 +7,10 @@ if (!isset($_SESSION["id_usuario"])) {
 }
 
 require_once __DIR__ . "/../config/conexion.php";
+require_once __DIR__ . "/../config/unidad_contexto.php";
+$contextoUnidad = unidadObtenerContexto($conexion);
+unidadExigirPermisoEscritura();
+$idUnidad = $contextoUnidad["id_unidad"];
 require_once __DIR__ . "/funciones_vph.php";
 asegurarEsquemaVph($conexion);
 
@@ -15,23 +19,7 @@ function escaparVphConfidencial($valor)
     return htmlspecialchars((string)$valor, ENT_QUOTES, "UTF-8");
 }
 
-$stmtUsuario = $conexion->prepare(
-    "SELECT id_unidad FROM USUARIO WHERE id_usuario = ?"
-);
-if (!$stmtUsuario) {
-    die("Error al consultar la unidad del usuario: " . $conexion->error);
-}
 $idUsuario = (int)$_SESSION["id_usuario"];
-$stmtUsuario->bind_param("i", $idUsuario);
-if (!$stmtUsuario->execute()) {
-    die("Error al consultar la unidad del usuario: " . $stmtUsuario->error);
-}
-$usuario = $stmtUsuario->get_result()->fetch_assoc();
-$stmtUsuario->close();
-if (!$usuario || empty($usuario["id_unidad"])) {
-    die("El usuario no tiene una unidad de salud asignada.");
-}
-$idUnidad = (int)$usuario["id_unidad"];
 
 $resultadoVph = $conexion->query(
     "SELECT id_biologico FROM BIOLOGICO WHERE nombre_biologico = 'VPH' LIMIT 1"
@@ -103,6 +91,7 @@ $valores = [
 $guardado = ($_GET["guardado"] ?? "") === "1";
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
+    unidadExigirPermisoEscritura();
     foreach ($valores as $campo => $predeterminado) {
         $valor = $_POST[$campo] ?? $predeterminado;
         $valores[$campo] = is_string($valor) ? $valor : $predeterminado;

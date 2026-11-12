@@ -7,20 +7,10 @@ if (!isset($_SESSION["id_usuario"])) {
 }
 
 require_once "../config/conexion.php";
-
-$stmtUnidad = $conexion->prepare("SELECT id_unidad FROM USUARIO WHERE id_usuario = ?");
-if (!$stmtUnidad) {
-    die("Error al preparar la consulta de unidad: " . htmlspecialchars($conexion->error, ENT_QUOTES, "UTF-8"));
-}
-$stmtUnidad->bind_param("i", $_SESSION["id_usuario"]);
-$stmtUnidad->execute();
-$unidad = $stmtUnidad->get_result()->fetch_assoc();
-$stmtUnidad->close();
-
-if (empty($unidad["id_unidad"])) {
-    die("El usuario no tiene una unidad asignada.");
-}
-$idUnidad = (int)$unidad["id_unidad"];
+require_once __DIR__ . "/../config/unidad_contexto.php";
+$contextoUnidad = unidadObtenerContexto($conexion);
+unidadExigirPermisoEscritura();
+$idUnidad = $contextoUnidad["id_unidad"];
 
 $resultadoJeringas = $conexion->query("SELECT id_jeringa, tipo FROM JERINGA ORDER BY tipo");
 if (!$resultadoJeringas) {

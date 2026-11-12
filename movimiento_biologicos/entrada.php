@@ -1,5 +1,14 @@
 <?php
+require_once __DIR__ . "/../config/seguridad.php";
+if (!isset($_SESSION["id_usuario"])) {
+    header("Location: ../login.php");
+    exit();
+}
 require_once "../config/conexion.php";
+require_once __DIR__ . "/../config/unidad_contexto.php";
+$contextoUnidad = unidadObtenerContexto($conexion);
+unidadExigirPermisoEscritura();
+$idUnidad = $contextoUnidad["id_unidad"];
 
 //Biologicos y presentaciones
 
@@ -17,23 +26,17 @@ $sql = "SELECT
 $resultado = $conexion->query($sql);
 
 
-$sql_unidades= "SELECT 
-                id_unidad,
-                nombre_unidad
-                FROM UNIDAD
-                ORDER BY nombre_unidad";
-$unidades= $conexion->query($sql_unidades);
-
 //Guardar nueva entrada de biologico
 
 if($_SERVER["REQUEST_METHOD"] == "POST") {
+    unidadExigirPermisoEscritura();
     $id_presentacion = $_POST['id_presentacion'];
     $numero_lote = $_POST['numero_lote'];
     $fecha_caducidad = $_POST['fecha_caducidad'];
     $cantidad_frascos = $_POST['cantidad_frascos'];
     $fecha_movimiento = $_POST['fecha_movimiento'];
     $necesidad = 0;
-    $id_unidad = $_POST['id_unidad'];
+    $id_unidad = $idUnidad;
     $observaciones = trim($_POST["observaciones"] ?? "");
 
 //Dosis por frasco
@@ -162,17 +165,8 @@ if($_SERVER["REQUEST_METHOD"] == "POST") {
             <br><br>
 
             <label>UNIDAD</label>
-            <select name="id_unidad" required>
-                <option value="">
-                    SELECCIONA UNA UNIDAD
-                </option>
-
-                <?php while ($unidad = $unidades->fetch_assoc()) { ?>
-                    <option value="<?php echo $unidad['id_unidad']; ?>">
-                        <?php echo $unidad['nombre_unidad']; ?>
-                    </option>
-                <?php }  ?> 
-            </select>
+            <input type="hidden" name="id_unidad" value="<?php echo $idUnidad; ?>">
+            <p><?php echo htmlspecialchars($contextoUnidad["nombre_unidad"], ENT_QUOTES, "UTF-8"); ?></p>
             <br><br>
             <label>OBSERVACIONES DE ENTRADA</label>
             <textarea

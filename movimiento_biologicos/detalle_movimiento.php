@@ -7,6 +7,9 @@ if (!isset($_SESSION["id_usuario"])) {
 }
 
 require_once "../config/conexion.php";
+require_once __DIR__ . "/../config/unidad_contexto.php";
+$contextoUnidad = unidadObtenerContexto($conexion);
+$idUnidad = $contextoUnidad["id_unidad"];
 
 function h($valor) {
     return htmlspecialchars((string)$valor, ENT_QUOTES, "UTF-8");
@@ -32,20 +35,6 @@ if (
 
 $inicio = $mes . "-01";
 $fin = date("Y-m-d", strtotime($inicio . " +1 month"));
-
-$stmt = $conexion->prepare(
-    "SELECT id_unidad FROM USUARIO WHERE id_usuario = ?"
-);
-$stmt->bind_param("i", $_SESSION["id_usuario"]);
-$stmt->execute();
-$usuario = $stmt->get_result()->fetch_assoc();
-$stmt->close();
-
-if (empty($usuario["id_unidad"])) {
-    exit("El usuario no tiene una unidad asignada.");
-}
-
-$idUnidad = (int)$usuario["id_unidad"];
 
 $sql = "SELECT mb.fecha_movimiento, mb.cantidad_frascos,
                mb.cantidad_dosis, mb.observaciones,

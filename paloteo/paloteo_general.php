@@ -7,6 +7,7 @@ if (!isset($_SESSION["id_usuario"])) {
 }
 
 require_once __DIR__ . "/../config/conexion.php";
+require_once __DIR__ . "/../config/unidad_contexto.php";
 require_once __DIR__ . "/../vacunacion/funciones_vph.php";
 asegurarEsquemaVph($conexion);
 asegurarClasificacionHepatitisB($conexion);
@@ -88,6 +89,14 @@ $mesPredeterminado = (int)date("n");
 $anioPredeterminado = (int)date("Y");
 $modoInformeAnual = defined("INFORME_ANUAL_SOLICITANDO_CONTEOS");
 $origenPeriodo = $_SERVER["REQUEST_METHOD"] === "POST" ? $_POST : $_GET;
+$solicitudInforme = defined("INFORME_ANUAL_SOLICITANDO_CONTEOS")
+    || defined("INFORME_MENSUAL_SOLICITANDO_CONTEOS");
+$contextoUnidad = unidadObtenerContexto($conexion);
+$idUnidad = $contextoUnidad["id_unidad"];
+$soloConsulta = $contextoUnidad["solo_consulta"];
+if ($_SERVER["REQUEST_METHOD"] === "POST" && !$solicitudInforme) {
+    unidadExigirPermisoEscritura();
+}
 $mes = leerPeriodo($origenPeriodo["mes"] ?? null, 1, 12, $mesPredeterminado);
 $anio = leerPeriodo($origenPeriodo["anio"] ?? null, 2000, 2100, $anioPredeterminado);
 $fechaInicio = new DateTimeImmutable(sprintf(
@@ -103,10 +112,7 @@ $diasFormato = 31;
 $inicioSql = $fechaInicio->format("Y-m-d");
 $finSql = $fechaFin->format("Y-m-d");
 
-$sqlUsuario = "SELECT u.id_unidad, un.nombre_unidad, u.nombre, u.ap_pat, u.ap_mat
-               FROM USUARIO u
-               LEFT JOIN UNIDAD un ON un.id_unidad = u.id_unidad
-               WHERE u.id_usuario = ?";
+$sqlUsuario = "SELECT nombre, ap_pat, ap_mat FROM USUARIO WHERE id_usuario = ?";
 $stmtUsuario = $conexion->prepare($sqlUsuario);
 if (!$stmtUsuario) {
     die("Error al consultar la unidad del usuario: " . $conexion->error);
@@ -119,11 +125,7 @@ if (!$stmtUsuario->execute()) {
 $usuario = $stmtUsuario->get_result()->fetch_assoc();
 $stmtUsuario->close();
 
-if (!$usuario || empty($usuario["id_unidad"])) {
-    die("El usuario no tiene una unidad de salud asignada.");
-}
-$idUnidad = (int)$usuario["id_unidad"];
-$nombreUnidad = (string)($usuario["nombre_unidad"] ?? "");
+$nombreUnidad = $contextoUnidad["nombre_unidad"];
 $nombreResponsable = trim(
     ($usuario["nombre"] ?? "") . " " . ($usuario["ap_pat"] ?? "") . " " . ($usuario["ap_mat"] ?? "")
 );
@@ -875,6 +877,7 @@ while ($aplicacion = $resultadoAplicaciones->fetch_assoc()) {
         $familia === "hepatitisa"
         && $codigoDosis === "unica"
         && count($comorbilidades) > 0
+        && count(array_intersect([1, 2, 4, 8], $comorbilidades)) > 0
     ) {
         $filaEncontrada = "hepa_riesgo";
     } elseif (
@@ -1557,6 +1560,7 @@ $guardado = ($_GET["guardado"] ?? "") === "1";
                 <circle cx="10.8" cy="10.8" r="6.8"></circle><path d="m16 16 5 5"></path>
             </svg>
         </button>
+        <?php if (!$soloConsulta): ?>
         <button class="primario boton-guardar" type="submit" form="form-paloteo"
                 aria-label="Guardar paloteo" title="Guardar paloteo">
             <svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none"
@@ -1565,6 +1569,9 @@ $guardado = ($_GET["guardado"] ?? "") === "1";
                 <path d="M17 21v-8H7v8M7 3v5h8"></path>
             </svg>
         </button>
+        <?php else: ?>
+        <span role="status">Modo de consulta: los ajustes no se pueden guardar.</span>
+        <?php endif; ?>
         <button class="secundario boton-icono" type="button" onclick="window.print()" aria-label="Imprimir o guardar como PDF" title="Imprimir o guardar como PDF">
             <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M7 8V3h10v5M7 17H5a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2"></path><path d="M7 14h10v7H7zM18 11h.01"></path>

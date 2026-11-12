@@ -1,15 +1,25 @@
 
 <?php
 require_once __DIR__ . "/config/seguridad.php";
+define("FORZAR_CONEXION_LOCAL", true);
 require_once "config/conexion.php";
+$conexionLocal = $conexion;
+define("CENTRAL_CONNECTION_OPTIONAL", true);
+require_once __DIR__ . "/config/conexion_bd_central.php";
+$conexionCentral = $conexionCentralDisponible ? $conexion : null;
+$conexion = $conexionLocal;
 
 $mensaje = isset($_GET["sesion"]) && $_GET["sesion"] === "expirada"
     ? "Tu sesión expiró. Inicia sesión nuevamente."
     : "";
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    $nombre_usuario = $_POST["nombre_usuario"];
-    $contrasena = $_POST["contrasena"];
+    $nombre_usuario = is_string($_POST["nombre_usuario"] ?? null)
+        ? trim($_POST["nombre_usuario"])
+        : "";
+    $contrasena = is_string($_POST["contrasena"] ?? null)
+        ? $_POST["contrasena"]
+        : "";
 
     $sql = "SELECT
             u.id_usuario,
@@ -23,34 +33,64 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 ON u.id_rol = r.id_rol
             WHERE u.nombre_usuario = ?";
 
-    $stmt = $conexion->prepare($sql);
-    $stmt->bind_param("s", $nombre_usuario);
-    $stmt->execute();
-
-    $resultado = $stmt->get_result();
-
-    if ($resultado->num_rows == 1) {
-        $usuario = $resultado->fetch_assoc();
-
-        if (password_verify($contrasena, $usuario["contrasena"])) {
-            session_regenerate_id(true);
-            $_SESSION["id_usuario"] = $usuario["id_usuario"];
-            $_SESSION["nombre_usuario"] = $usuario["nombre_usuario"];
-            $_SESSION["nombre"] = $usuario["nombre"];
-            $_SESSION["id_rol"] = $usuario["id_rol"];
-            $_SESSION["nombre_rol"] = $usuario["nombre_rol"];
-            $_SESSION["ultima_actividad"] = time();
-
-            header("Location: menu.php");
-            exit();
-        } else {
-            $mensaje = "Usuario o contraseña incorrectos.";
+    $autenticarEnBase = static function (
+        mysqli $conexionAutenticacion,
+        string $nombreUsuario
+    ) use ($sql) {
+        $stmt = $conexionAutenticacion->prepare($sql);
+        if (!$stmt) {
+            http_response_code(500);
+            exit("No fue posible validar las credenciales.");
         }
+        $stmt->bind_param("s", $nombreUsuario);
+        if (!$stmt->execute()) {
+            http_response_code(500);
+            exit("No fue posible validar las credenciales.");
+        }
+        $resultado = $stmt->get_result();
+        $usuario = $resultado->fetch_assoc();
+        $stmt->close();
+        return $usuario ?: null;
+    };
+
+    $usuarioCentral = $nombre_usuario === "" || !$conexionCentral
+        ? null
+        : $autenticarEnBase($conexionCentral, $nombre_usuario);
+    $rolCentralEsCoordinador = $usuarioCentral
+        && in_array($usuarioCentral["nombre_rol"], ["Administrador", "Supervisor"], true);
+
+    if ($rolCentralEsCoordinador) {
+        if (password_verify($contrasena, $usuarioCentral["contrasena"])) {
+            $usuario = $usuarioCentral;
+        } else {
+            $usuario = null;
+        }
+    } else {
+        $usuarioLocal = $nombre_usuario === ""
+            ? null
+            : $autenticarEnBase($conexionLocal, $nombre_usuario);
+        $rolLocalEsPersonal = $usuarioLocal
+            && $usuarioLocal["nombre_rol"] === "Personal de unidad";
+        $usuario = $rolLocalEsPersonal
+            && password_verify($contrasena, $usuarioLocal["contrasena"])
+                ? $usuarioLocal
+                : null;
+    }
+
+    if ($usuario) {
+        session_regenerate_id(true);
+        $_SESSION["id_usuario"] = $usuario["id_usuario"];
+        $_SESSION["nombre_usuario"] = $usuario["nombre_usuario"];
+        $_SESSION["nombre"] = $usuario["nombre"];
+        $_SESSION["id_rol"] = $usuario["id_rol"];
+        $_SESSION["nombre_rol"] = $usuario["nombre_rol"];
+        $_SESSION["ultima_actividad"] = time();
+
+        header("Location: menu.php");
+        exit();
     } else {
         $mensaje = "Usuario o contraseña incorrectos.";
     }
-
-    $stmt->close();
 }
 ?>
 

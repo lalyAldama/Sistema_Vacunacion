@@ -8,6 +8,19 @@ if (!isset($_SESSION["id_usuario"])) {
 }
 
 require_once "../config/conexion.php";
+require_once __DIR__ . "/../config/unidad_contexto.php";
+require_once __DIR__ . "/configuracion.php";
+unidadAsegurarUnidadEnPacienteCenso($conexion);
+$contextoUnidad = unidadObtenerContexto($conexion);
+$idUnidad = $contextoUnidad["id_unidad"];
+unidadExigirPermisoEscritura();
+
+try {
+    censoAsegurarTablaConfiguracion($conexion);
+} catch (RuntimeException $e) {
+    http_response_code(500);
+    exit($e->getMessage());
+}
 
 if($_SERVER["REQUEST_METHOD"] === "POST") {
     $id_paciente = $_GET["id"];
@@ -15,13 +28,13 @@ if($_SERVER["REQUEST_METHOD"] === "POST") {
         "SELECT pc.id_censo, p.fecha_nacimiento
          FROM PACIENTE_CENSO pc
          INNER JOIN PACIENTE p ON p.id_paciente = pc.id_paciente
-         WHERE pc.id_paciente = ?
+         WHERE pc.id_paciente = ? AND pc.id_unidad = ?
          LIMIT 1"
     );
     if (!$stmtCenso) {
         die("Error al consultar el censo del paciente: " . $conexion->error);
     }
-    $stmtCenso->bind_param("s", $id_paciente);
+    $stmtCenso->bind_param("si", $id_paciente, $idUnidad);
     if (!$stmtCenso->execute()) {
         die("Error al consultar el censo del paciente: " . $stmtCenso->error);
     }
@@ -71,19 +84,19 @@ if($_SERVER["REQUEST_METHOD"] === "POST") {
         : null;
 
     try {
-        $nacimiento = new DateTimeImmutable($fechaNacimientoPaciente);
-        $edadPaciente = $nacimiento->diff(new DateTimeImmutable("today"))->y;
+        $nuevoIdCenso = censoDeterminarId(
+            $conexion,
+            $fechaNacimientoPaciente,
+            $_POST["sexo"],
+            $embarazo,
+            (int)$poblacion,
+            $es_migrante === "1" ? 1 : 0,
+            (int)$personal_salud,
+            (int)$jornalero_agricola
+        );
     } catch (Throwable $e) {
-        http_response_code(500);
-        exit("No se pudo determinar la edad del paciente para actualizar su censo.");
-    }
-
-    if ($embarazo === 1 || $edadPaciente >= 20) {
-        $nuevoIdCenso = 3;
-    } elseif ($edadPaciente >= 10) {
-        $nuevoIdCenso = 2;
-    } else {
-        $nuevoIdCenso = 1;
+        http_response_code(400);
+        exit($e->getMessage());
     }
     $sqlTutorActual = "SELECT id_tutor FROM PACIENTE 
                         WHERE id_paciente = ?";
@@ -183,12 +196,12 @@ if($_SERVER["REQUEST_METHOD"] === "POST") {
     $stmtActualizar->close();
 
     $stmtActualizarCenso = $conexion->prepare(
-        "UPDATE PACIENTE_CENSO SET id_censo = ? WHERE id_paciente = ?"
+        "UPDATE PACIENTE_CENSO SET id_censo = ? WHERE id_paciente = ? AND id_unidad = ?"
     );
     if (!$stmtActualizarCenso) {
         die("Error al preparar la actualización del censo: " . $conexion->error);
     }
-    $stmtActualizarCenso->bind_param("is", $nuevoIdCenso, $id_paciente);
+    $stmtActualizarCenso->bind_param("isi", $nuevoIdCenso, $id_paciente, $idUnidad);
     if (!$stmtActualizarCenso->execute()) {
         die("Error al actualizar el censo del paciente: " . $stmtActualizarCenso->error);
     }
@@ -228,10 +241,10 @@ $sql = "SELECT p.*,
         FROM PACIENTE p
         INNER JOIN PACIENTE_CENSO pc ON pc.id_paciente = p.id_paciente
         LEFT JOIN TUTOR t ON p.id_tutor = t.id_tutor
-        WHERE p.id_paciente = ?";
+        WHERE p.id_paciente = ? AND pc.id_unidad = ?";
 
 $stmt = $conexion->prepare($sql);
-$stmt->bind_param("s", $id_paciente);
+$stmt->bind_param("si", $id_paciente, $idUnidad);
 $stmt->execute();
 $resultado = $stmt->get_result();
 $paciente = $resultado->fetch_assoc();
@@ -323,7 +336,7 @@ $esMigrante = (
     <p>Censo: <span id="tipo_censo">--</span></p>
 
     <label>SEXO:</label><br>
-    <select name="sexo" disabled required >
+    <select name="sexo" required >
         <option value="">SELECCIONE...</option>
         <option value="F" <?php echo $paciente["sexo"] === "F" ? "selected" : ""; ?>>FEMENINO</option>
         <option value="M" <?php echo $paciente["sexo"] === "M" ? "selected" : ""; ?>>MASCULINO</option>

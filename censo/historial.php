@@ -6,17 +6,40 @@ function censoHistorialAsegurarTabla(mysqli $conexion): void
                 id_historial BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
                 tipo_reporte VARCHAR(20) NOT NULL,
                 id_censo TINYINT UNSIGNED NOT NULL,
+                id_unidad INT NOT NULL DEFAULT 1,
                 fecha_captura DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 hash_contenido CHAR(64) NOT NULL,
                 contenido LONGBLOB NOT NULL,
                 PRIMARY KEY (id_historial),
-                KEY idx_censo_historial_fecha (tipo_reporte, id_censo, fecha_captura),
+                KEY idx_censo_historial_fecha (id_unidad, tipo_reporte, id_censo, fecha_captura),
                 KEY idx_censo_historial_expiracion (fecha_captura)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4";
 
     if (!$conexion->query($sql)) {
         http_response_code(500);
         exit("No se pudo preparar el almacenamiento del historial: " . $conexion->error);
+    }
+
+    $resultadoColumna = $conexion->query(
+        "SELECT COUNT(*) AS cantidad
+         FROM information_schema.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE()
+           AND TABLE_NAME = 'CENSO_HISTORIAL'
+           AND COLUMN_NAME = 'id_unidad'"
+    );
+    if (!$resultadoColumna) {
+        http_response_code(500);
+        exit("No se pudo verificar la unidad del historial: " . $conexion->error);
+    }
+    $columnaExiste = (int)$resultadoColumna->fetch_assoc()["cantidad"] > 0;
+    $resultadoColumna->free();
+    if (!$columnaExiste && !$conexion->query(
+        "ALTER TABLE CENSO_HISTORIAL
+         ADD COLUMN id_unidad INT NOT NULL DEFAULT 1,
+         ADD KEY idx_censo_historial_unidad_fecha (id_unidad, tipo_reporte, id_censo, fecha_captura)"
+    )) {
+        http_response_code(500);
+        exit("No se pudo agregar la unidad al historial: " . $conexion->error);
     }
 
     if (!$conexion->query(
@@ -32,7 +55,8 @@ function censoHistorialGuardar(
     mysqli $conexion,
     string $tipo,
     int $idCenso,
-    string $contenido
+    string $contenido,
+    int $idUnidad
 ): void {
     if (!function_exists("gzcompress")) {
         http_response_code(500);
@@ -43,7 +67,7 @@ function censoHistorialGuardar(
     $stmt = $conexion->prepare(
         "SELECT hash_contenido
          FROM CENSO_HISTORIAL
-         WHERE tipo_reporte = ? AND id_censo = ?
+         WHERE tipo_reporte = ? AND id_censo = ? AND id_unidad = ?
          ORDER BY fecha_captura DESC, id_historial DESC
          LIMIT 1"
     );
@@ -52,7 +76,7 @@ function censoHistorialGuardar(
         exit("No se pudo consultar el historial: " . $conexion->error);
     }
 
-    $stmt->bind_param("si", $tipo, $idCenso);
+    $stmt->bind_param("sii", $tipo, $idCenso, $idUnidad);
     if (!$stmt->execute()) {
         http_response_code(500);
         exit("No se pudo consultar el historial: " . $stmt->error);
@@ -73,16 +97,16 @@ function censoHistorialGuardar(
     }
 
     $stmt = $conexion->prepare(
-        "INSERT INTO CENSO_HISTORIAL (tipo_reporte, id_censo, hash_contenido, contenido)
-         VALUES (?, ?, ?, ?)"
+        "INSERT INTO CENSO_HISTORIAL (tipo_reporte, id_censo, id_unidad, hash_contenido, contenido)
+         VALUES (?, ?, ?, ?, ?)"
     );
     if (!$stmt) {
         http_response_code(500);
         exit("No se pudo preparar el guardado del historial: " . $conexion->error);
     }
 
-    $stmt->bind_param("sisb", $tipo, $idCenso, $hash, $contenidoComprimido);
-    if (!$stmt->send_long_data(3, $contenidoComprimido) || !$stmt->execute()) {
+    $stmt->bind_param("siisb", $tipo, $idCenso, $idUnidad, $hash, $contenidoComprimido);
+    if (!$stmt->send_long_data(4, $contenidoComprimido) || !$stmt->execute()) {
         http_response_code(500);
         exit("No se pudo guardar la copia del censo: " . $stmt->error);
     }
@@ -101,13 +125,15 @@ function censoHistorialObtener(
     mysqli $conexion,
     string $tipo,
     int $idCenso,
-    string $fecha
+    string $fecha,
+    int $idUnidad
 ): ?array {
     $stmt = $conexion->prepare(
         "SELECT contenido, fecha_captura
          FROM CENSO_HISTORIAL
          WHERE tipo_reporte = ?
            AND id_censo = ?
+           AND id_unidad = ?
            AND fecha_captura <= CONCAT(?, ' 23:59:59')
          ORDER BY fecha_captura DESC, id_historial DESC
          LIMIT 1"
@@ -117,7 +143,7 @@ function censoHistorialObtener(
         exit("No se pudo consultar la copia histórica: " . $conexion->error);
     }
 
-    $stmt->bind_param("sis", $tipo, $idCenso, $fecha);
+    $stmt->bind_param("siis", $tipo, $idCenso, $idUnidad, $fecha);
     if (!$stmt->execute()) {
         http_response_code(500);
         exit("No se pudo consultar la copia histórica: " . $stmt->error);
@@ -142,12 +168,12 @@ function censoHistorialObtener(
     ];
 }
 
-function censoHistorialPrimero(mysqli $conexion, string $tipo, int $idCenso): ?string
+function censoHistorialPrimero(mysqli $conexion, string $tipo, int $idCenso, int $idUnidad): ?string
 {
     $stmt = $conexion->prepare(
         "SELECT fecha_captura
          FROM CENSO_HISTORIAL
-         WHERE tipo_reporte = ? AND id_censo = ?
+         WHERE tipo_reporte = ? AND id_censo = ? AND id_unidad = ?
          ORDER BY fecha_captura ASC, id_historial ASC
          LIMIT 1"
     );
@@ -156,7 +182,7 @@ function censoHistorialPrimero(mysqli $conexion, string $tipo, int $idCenso): ?s
         exit("No se pudo consultar el inicio del historial: " . $conexion->error);
     }
 
-    $stmt->bind_param("si", $tipo, $idCenso);
+    $stmt->bind_param("sii", $tipo, $idCenso, $idUnidad);
     if (!$stmt->execute()) {
         http_response_code(500);
         exit("No se pudo consultar el inicio del historial: " . $stmt->error);
@@ -186,16 +212,17 @@ function censoHistorialMostrar(
     string $titulo,
     string $ruta,
     ?string $fecha,
-    bool $incluirCenso = false
+    bool $incluirCenso = false,
+    int $idUnidad = 1
 ): void {
     $copia = null;
     $fechaValida = censoHistorialFechaValida($fecha);
 
     if ($fecha !== null && $fechaValida) {
-        $copia = censoHistorialObtener($conexion, $tipo, $idCenso, $fecha);
+        $copia = censoHistorialObtener($conexion, $tipo, $idCenso, $fecha, $idUnidad);
     }
 
-    $primeraCaptura = censoHistorialPrimero($conexion, $tipo, $idCenso);
+    $primeraCaptura = censoHistorialPrimero($conexion, $tipo, $idCenso, $idUnidad);
     $escape = static function ($valor): string {
         return htmlspecialchars((string)$valor, ENT_QUOTES | ENT_SUBSTITUTE, "UTF-8");
     };

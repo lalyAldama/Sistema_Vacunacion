@@ -6,6 +6,9 @@ if (!isset($_SESSION["id_usuario"])) {
 }
 
 require_once "../config/conexion.php";
+require_once __DIR__ . "/../config/unidad_contexto.php";
+unidadExigirPermisoEscritura();
+$contextoUnidad = unidadObtenerContexto($conexion);
 ?>
 
 
@@ -40,10 +43,9 @@ require_once "../config/conexion.php";
 
             <label>FECHA DE NACIMIENTO: </label><br>
             <input type="date" name="fecha_nacimiento" id="fecha_nacimiento" required>
+            <p>Edad: <span id="edad">--</span></p>
             <p>
-                Edad: <span id="edad">--</span>
-            </p>
-            <p>Censo: <span id="tipo_censo">--</span>
+                Censo: <span id="tipo_censo">se asigna según los rangos y grupos configurados</span>
             </p>
             <br><br>
 

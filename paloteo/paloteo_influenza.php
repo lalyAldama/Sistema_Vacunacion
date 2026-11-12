@@ -7,6 +7,13 @@ if (!isset($_SESSION["id_usuario"])) {
 }
 
 require_once __DIR__ . "/../config/conexion.php";
+require_once __DIR__ . "/../config/unidad_contexto.php";
+$contextoUnidad = unidadObtenerContexto($conexion);
+$idUnidad = $contextoUnidad["id_unidad"];
+$soloConsulta = $contextoUnidad["solo_consulta"];
+if ($_SERVER["REQUEST_METHOD"] === "POST") {
+    unidadExigirPermisoEscritura();
+}
 
 function hInfluenza($value)
 {
@@ -63,9 +70,7 @@ $inicioSql = $fechaInicio->format("Y-m-d");
 $finSql = $fechaFin->format("Y-m-d");
 
 $stmtUsuario = $conexion->prepare(
-    "SELECT u.id_unidad, un.nombre_unidad, u.nombre, u.ap_pat, u.ap_mat
-     FROM USUARIO u LEFT JOIN UNIDAD un ON un.id_unidad = u.id_unidad
-     WHERE u.id_usuario = ?"
+    "SELECT nombre, ap_pat, ap_mat FROM USUARIO WHERE id_usuario = ?"
 );
 if (!$stmtUsuario) {
     die("Error al consultar la unidad del usuario: " . $conexion->error);
@@ -77,11 +82,7 @@ if (!$stmtUsuario->execute()) {
 }
 $usuario = $stmtUsuario->get_result()->fetch_assoc();
 $stmtUsuario->close();
-if (!$usuario || empty($usuario["id_unidad"])) {
-    die("El usuario no tiene una unidad de salud asignada.");
-}
-$idUnidad = (int)$usuario["id_unidad"];
-$nombreUnidad = (string)($usuario["nombre_unidad"] ?? "");
+$nombreUnidad = $contextoUnidad["nombre_unidad"];
 $nombreResponsable = trim(
     ($usuario["nombre"] ?? "") . " " . ($usuario["ap_pat"] ?? "") . " " . ($usuario["ap_mat"] ?? "")
 );
@@ -588,12 +589,16 @@ $guardado = ($_GET["guardado"] ?? "") === "1";
                 </svg>
             </button>
         </form>
+        <?php if (!$soloConsulta): ?>
         <button class="primario guardar boton-icono" type="submit" form="formulario-paloteo-influenza" aria-label="Guardar paloteo de influenza" title="Guardar paloteo de influenza">
             <svg aria-hidden="true" viewBox="0 0 24 24" focusable="false">
                 <path d="M5 3h12l4 4v14H3V3h2Z"/>
                 <path d="M7 3v6h10V3M7 21v-8h10v8"/>
             </svg>
         </button>
+        <?php else: ?>
+        <span role="status">Modo de consulta: los ajustes no se pueden guardar.</span>
+        <?php endif; ?>
         <button class="secundario boton-icono" type="button" onclick="window.print()" aria-label="Imprimir o guardar como PDF" title="Imprimir o guardar como PDF">
             <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M7 8V3h10v5M7 17H5a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2"></path><path d="M7 14h10v7H7zM18 11h.01"></path>

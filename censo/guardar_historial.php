@@ -7,6 +7,9 @@ if (!isset($_SESSION["id_usuario"])) {
 }
 
 require_once __DIR__ . "/../config/conexion.php";
+require_once __DIR__ . "/../config/unidad_contexto.php";
+$contextoUnidad = unidadObtenerContexto($conexion);
+$idUnidad = $contextoUnidad["id_unidad"];
 require_once __DIR__ . "/historial.php";
 
 header("Content-Type: application/json; charset=utf-8");
@@ -16,9 +19,25 @@ $idCenso = filter_var($_POST["id_censo"] ?? null, FILTER_VALIDATE_INT);
 $contenido = $_POST["contenido"] ?? "";
 $token = $_POST["token"] ?? "";
 $tipoValido = is_int($idCenso) && (
-    ($tipo === "general" && in_array($idCenso, [1, 2, 3], true))
+    ($tipo === "general" && $idCenso > 0)
     || ($tipo === "influenza" && $idCenso === 0)
 );
+if ($tipoValido && $tipo === "general") {
+    $stmtCenso = $conexion->prepare("SELECT id_censo FROM CENSO WHERE id_censo = ? LIMIT 1");
+    if (!$stmtCenso) {
+        http_response_code(500);
+        echo json_encode(["success" => false, "error" => "No se pudo validar el censo."]);
+        exit;
+    }
+    $stmtCenso->bind_param("i", $idCenso);
+    if (!$stmtCenso->execute()) {
+        http_response_code(500);
+        echo json_encode(["success" => false, "error" => "No se pudo validar el censo."]);
+        exit;
+    }
+    $tipoValido = $stmtCenso->get_result()->fetch_assoc() !== null;
+    $stmtCenso->close();
+}
 
 if (!$tipoValido) {
     http_response_code(400);
@@ -45,6 +64,7 @@ if (
 }
 
 censoHistorialAsegurarTabla($conexion);
-censoHistorialGuardar($conexion, $tipo, $idCenso, $contenido);
+unidadAsegurarUnidadEnPacienteCenso($conexion);
+censoHistorialGuardar($conexion, $tipo, $idCenso, $contenido, $idUnidad);
 
 echo json_encode(["success" => true]);

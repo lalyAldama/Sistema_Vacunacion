@@ -6,33 +6,24 @@ if (!isset($_SESSION["id_usuario"])) {
     exit();
 }
 
-if (($_SESSION["nombre_rol"] ?? "") !== "Personal de unidad") {
+if (!in_array($_SESSION["nombre_rol"] ?? "", ["Personal de unidad", "Supervisor"], true)) {
     http_response_code(403);
-    exit("Esta función está disponible para personal de unidad.");
+    exit("Esta función está disponible para personal de unidad y supervisores.");
+}
+if (($_SESSION["nombre_rol"] ?? "") === "Supervisor") {
+    header("Location: importar.php");
+    exit();
 }
 
 require_once __DIR__ . "/../config/conexion.php";
-
-$stmtUnidad = $conexion->prepare(
-    "SELECT u.id_unidad, un.nombre_unidad
-     FROM USUARIO u
-     INNER JOIN UNIDAD un ON un.id_unidad = u.id_unidad
-     WHERE u.id_usuario = ?"
-);
-if (!$stmtUnidad) {
-    die("Error al consultar la unidad de origen: " . $conexion->error);
-}
-$idUsuario = (int)$_SESSION["id_usuario"];
-$stmtUnidad->bind_param("i", $idUsuario);
-if (!$stmtUnidad->execute()) {
-    die("Error al consultar la unidad de origen: " . $stmtUnidad->error);
-}
-$unidadOrigen = $stmtUnidad->get_result()->fetch_assoc();
-$stmtUnidad->close();
-if (!$unidadOrigen) {
-    http_response_code(400);
-    exit("El usuario no tiene una unidad asignada.");
-}
+require_once __DIR__ . "/../config/unidad_contexto.php";
+$contextoUnidad = unidadObtenerContexto($conexion);
+$unidadOrigen = [
+    "id_unidad" => $contextoUnidad["id_unidad"],
+    "nombre_unidad" => $contextoUnidad["nombre_unidad"]
+];
+require_once __DIR__ . "/funciones.php";
+$uuidInstalacion = asegurarEsquemaExportacionUnidad($conexion);
 
 $tokenExportacion = hash_hmac(
     "sha256",
@@ -70,6 +61,7 @@ $tokenExportacion = hash_hmac(
     <p class="unidad">
         Unidad: <strong><?php echo htmlspecialchars($unidadOrigen["nombre_unidad"], ENT_QUOTES, "UTF-8"); ?></strong>
         (ID local <?php echo (int)$unidadOrigen["id_unidad"]; ?>)
+        <br>Identificador de instalación: <code><?php echo htmlspecialchars($uuidInstalacion, ENT_QUOTES, "UTF-8"); ?></code>
     </p>
     <p>
         Se generará un paquete cifrado con pacientes, vacunas aplicadas, existencias,
@@ -84,7 +76,8 @@ $tokenExportacion = hash_hmac(
     <ul>
         <li>La exportación no borra ni modifica datos de esta unidad.</li>
         <li>Usa una contraseña nueva y guárdala hasta que la sede confirme la importación.</li>
-        <li>El paquete incluye una versión de formato y los identificadores locales de origen para detectar reimportaciones.</li>
+        <li>El paquete incluye una identidad UUID permanente de esta instalación para distinguirla de otras unidades.</li>
+        <li>Guarda los encabezados anuales con «Guardar metas» para que queden incluidos en la exportación.</li>
     </ul>
     <form method="post" action="exportar.php" autocomplete="off">
         <input type="hidden" name="token_exportacion" value="<?php echo htmlspecialchars($tokenExportacion, ENT_QUOTES, "UTF-8"); ?>">

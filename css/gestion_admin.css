@@ -1,0 +1,368 @@
+.gestion-admin {
+    min-height: 100vh;
+    background:
+        radial-gradient(circle at 5% 5%, rgba(53, 175, 168, 0.1), transparent 30%),
+        var(--fondo);
+}
+
+.gestion-contenedor {
+    width: min(1120px, 100%);
+    margin: 0 auto;
+    padding: 28px;
+    border: 1px solid rgba(220, 233, 237, 0.9);
+    border-radius: 18px;
+    background: var(--blanco);
+    box-shadow: 0 14px 40px rgba(40, 95, 112, 0.1);
+}
+
+.gestion-encabezado {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    margin: -28px -28px 24px;
+    padding: 24px 28px;
+    border-radius: 17px 17px 0 0;
+    background: linear-gradient(120deg, #285F70 0%, #347F91 60%, #35AFA8 100%);
+    color: #FFFFFF;
+}
+
+.gestion-encabezado-texto {
+    min-width: 0;
+}
+
+.gestion-etiqueta {
+    display: inline-block;
+    margin-bottom: 5px;
+    color: #C7EEE2;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 1.8px;
+}
+
+.gestion-encabezado h1 {
+    margin: 0;
+    color: #FFFFFF;
+    font-size: clamp(22px, 3vw, 29px);
+}
+
+.gestion-encabezado p {
+    margin: 5px 0 0;
+    color: #E4F4F4;
+    font-size: 13px;
+}
+
+.gestion-encabezado .gestion-volver {
+    flex-shrink: 0;
+    padding: 9px 13px;
+    border: 1px solid rgba(255, 255, 255, 0.45);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.12);
+    color: #FFFFFF;
+    font-size: 12px;
+    font-weight: 700;
+    text-decoration: none;
+}
+
+.gestion-encabezado .gestion-volver:hover {
+    background: rgba(255, 255, 255, 0.22);
+    color: #FFFFFF;
+}
+
+.gestion-acciones {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.gestion-acciones .btn,
+.gestion-tabla .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 36px;
+    padding: 8px 12px;
+    border-radius: 7px;
+}
+
+.gestion-btn-menta {
+    background: #278A83;
+}
+
+.gestion-btn-menta:hover {
+    background: #216F6A;
+}
+
+.gestion-tabla-contenedor {
+    width: 100%;
+    overflow-x: auto;
+    border: 1px solid var(--borde);
+    border-radius: 10px;
+    background: #FFFFFF;
+}
+
+.gestion-tabla {
+    min-width: 680px;
+    margin: 0;
+}
+
+.gestion-tabla th {
+    padding: 13px 12px !important;
+    border: 0 !important;
+    border-bottom: 1px solid var(--borde) !important;
+    background: #E3F0F5 !important;
+    color: var(--azul-oscuro) !important;
+    font-size: 12px;
+    letter-spacing: 0.2px;
+}
+
+.gestion-tabla td {
+    padding: 12px !important;
+    border: 0 !important;
+    border-bottom: 1px solid #EAF0F2 !important;
+    vertical-align: middle;
+}
+
+.gestion-tabla tbody tr:last-child td {
+    border-bottom: 0 !important;
+}
+
+.gestion-tabla tbody tr:hover {
+    background: #F2F8FA;
+}
+
+.gestion-tabla-acciones {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    min-width: 180px;
+}
+
+.gestion-tabla-acciones a {
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.gestion-tabla-acciones .btn {
+    min-height: 30px;
+    padding: 6px 9px;
+}
+
+.gestion-formulario {
+    max-width: 680px;
+    padding: 24px;
+    border: 1px solid var(--borde);
+    border-radius: 12px;
+    background: linear-gradient(145deg, #FFFFFF 0%, #F7FAFB 100%);
+    box-shadow: var(--sombra);
+}
+
+.gestion-formulario.configuracion-formulario {
+    max-width: none;
+}
+
+.configuracion-seccion {
+    margin: 24px 0;
+}
+
+.configuracion-seccion h2 {
+    margin-bottom: 8px;
+}
+
+.configuracion-ayuda {
+    margin: 0 0 16px;
+    color: var(--texto-secundario);
+}
+
+.configuracion-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+}
+
+.configuracion-campo {
+    display: grid;
+    gap: 6px;
+    margin: 0;
+}
+
+.configuracion-campo span {
+    font-size: 13px;
+}
+
+.configuracion-grupos {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.configuracion-biologicos {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.configuracion-biologico {
+    min-width: 0;
+    padding: 14px;
+    border: 1px solid var(--borde);
+    border-radius: 10px;
+    background: #FFFFFF;
+}
+
+.configuracion-biologico > label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 10px;
+    color: var(--azul-oscuro);
+}
+
+.configuracion-biologico input[type="checkbox"],
+.configuracion-dosis input[type="checkbox"] {
+    width: auto;
+}
+
+.configuracion-dosis {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 14px;
+    padding-top: 10px;
+    border-top: 1px solid var(--borde);
+}
+
+.configuracion-dosis label {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    margin: 0;
+    font-size: 12px;
+    font-weight: 400;
+}
+
+.configuracion-censo {
+    margin-bottom: 14px;
+    padding: 16px;
+    border: 1px solid var(--borde);
+    border-left: 4px solid var(--turquesa);
+    border-radius: 10px;
+    background: #FFFFFF;
+}
+
+.configuracion-censo h3 {
+    margin: 0 0 6px;
+}
+
+.configuracion-censo p {
+    margin: 0;
+    color: var(--texto-secundario);
+}
+
+.configuracion-alerta {
+    margin-bottom: 16px;
+    padding: 12px 15px;
+    border: 1px solid var(--borde);
+    border-radius: 7px;
+}
+
+.configuracion-alerta.error {
+    border-color: #E8BEC3;
+    background: var(--fondo-error);
+    color: #963A45;
+}
+
+.configuracion-alerta.exito {
+    border-color: #A9D9C4;
+    background: var(--fondo-exito);
+    color: #246847;
+}
+
+.gestion-formulario > label {
+    margin-top: 15px;
+}
+
+.gestion-formulario > label:first-child {
+    margin-top: 0;
+}
+
+.gestion-formulario br {
+    display: none;
+}
+
+.gestion-formulario button[type="submit"] {
+    margin-top: 18px;
+}
+
+.gestion-formulario button[type="button"] {
+    margin-top: 18px;
+    background: #647985;
+}
+
+.gestion-formulario button[type="button"]:hover {
+    background: #475D69;
+}
+
+.gestion-formulario .gestion-btn-secundario {
+    display: inline-flex;
+    align-items: center;
+    min-height: 38px;
+    margin: 18px 0 0 7px;
+    padding: 9px 16px;
+    border-radius: 5px;
+    background: #647985;
+    color: #FFFFFF;
+    font-size: 13px;
+    font-weight: 700;
+    text-decoration: none;
+}
+
+.gestion-formulario .gestion-btn-secundario:hover {
+    background: #475D69;
+    color: #FFFFFF;
+}
+
+@media (max-width: 700px) {
+    .gestion-contenedor {
+        padding: 16px;
+        border-radius: 14px;
+    }
+
+    .gestion-encabezado {
+        align-items: flex-start;
+        margin: -16px -16px 18px;
+        padding: 20px 16px;
+        border-radius: 13px 13px 0 0;
+    }
+
+    .gestion-encabezado p {
+        font-size: 12px;
+    }
+
+    .gestion-encabezado .gestion-volver {
+        padding: 8px 10px;
+        font-size: 11px;
+    }
+
+    .gestion-acciones {
+        display: grid;
+        grid-template-columns: 1fr;
+    }
+
+    .gestion-formulario {
+        padding: 17px;
+    }
+
+    .configuracion-grid,
+    .configuracion-grupos,
+    .configuracion-biologicos {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 420px) {
+    .gestion-encabezado {
+        flex-direction: column;
+        gap: 12px;
+    }
+}

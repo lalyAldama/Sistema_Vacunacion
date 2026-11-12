@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . "/../config/seguridad_administrador.php";
 require_once "../config/conexion.php";
 
 $sql = "SELECT 
@@ -21,27 +22,29 @@ $resultado = $conexion->query($sql);
 
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gestión de Biológicos</title>
     <link rel="stylesheet" href="../css/estilos.css">
+    <link rel="stylesheet" href="../css/gestion_admin.css">
 </head>
 
-<body>
+<body class="gestion-admin">
+    <main class="gestion-contenedor">
+        <header class="gestion-encabezado">
+            <div class="gestion-encabezado-texto">
+                <span class="gestion-etiqueta">ADMINISTRACIÓN</span>
+                <h1>Gestión de biológicos</h1>
+                <p>Administra los biológicos y sus presentaciones.</p>
+            </div>
+        </header>
 
-    <h1>Gestión de Biológicos</h1>
+        <nav class="gestion-acciones" aria-label="Acciones de biológicos">
+            <a class="btn" href="guardar.php">+ Nuevo biológico</a>
+            <a class="btn gestion-btn-menta" href="guardar_presentacion.php">+ Nueva presentación</a>
+        </nav>
 
-    <!-- Botones principales -->
-
-    <a href="guardar.php">
-        <button type="button">+ Nuevo biológico</button>
-    </a>
-
-    <a href="guardar_presentacion.php">
-        <button type="button">+ Nueva presentación</button>
-    </a>
-
-    <br><br>
-
-    <table border="1">
+        <div class="gestion-tabla-contenedor">
+        <table class="gestion-tabla">
 
         <thead>
             <tr>
@@ -60,13 +63,13 @@ $resultado = $conexion->query($sql);
                 <tr>
 
                     <td>
-                        <?php echo $biologico['nombre_biologico']; ?>
+                        <?php echo htmlspecialchars($biologico['nombre_biologico'], ENT_QUOTES, "UTF-8"); ?>
                     </td>
 
                     <td>
                         <?php
                         if ($biologico['nombre_presentacion'] !== null) {
-                            echo $biologico['nombre_presentacion'];
+                            echo htmlspecialchars($biologico['nombre_presentacion'], ENT_QUOTES, "UTF-8");
                         } else {
                             echo "Sin presentación";
                         }
@@ -96,36 +99,26 @@ $resultado = $conexion->query($sql);
                     <td>
 
                         <!-- Editar biológico -->
-                        <a href="editar.php?id=<?php echo $biologico['id_biologico']; ?>">
+                        <div class="gestion-tabla-acciones">
+                        <a class="btn" href="editar.php?id=<?php echo (int)$biologico['id_biologico']; ?>">
                             Editar biológico
                         </a>
 
-                        <br><br>
-
-                        <!-- Eliminar biológico -->
-                        <a href="eliminar.php?id=<?php echo $biologico['id_biologico']; ?>"
+                        <a class="btn btn-peligro" href="eliminar.php?id=<?php echo (int)$biologico['id_biologico']; ?>"
                            onclick="return confirm('¿Seguro que quieres eliminar este biológico?');">
                             Eliminar biológico
                         </a>
 
                         <?php if ($biologico['id_presentacion'] !== null) { ?>
-
-                            <br><br>
-
-                            <!-- Editar presentación -->
-                            <a href="editar_presentacion.php?id=<?php echo $biologico['id_presentacion']; ?>">
+                            <a class="btn" href="editar_presentacion.php?id=<?php echo (int)$biologico['id_presentacion']; ?>">
                                 Editar presentación
                             </a>
-
-                            <br><br>
-
-                            <!-- Eliminar presentación -->
-                            <a href="eliminar_presentacion.php?id=<?php echo $biologico['id_presentacion']; ?>"
+                            <a class="btn btn-peligro" href="eliminar_presentacion.php?id=<?php echo (int)$biologico['id_presentacion']; ?>"
                                onclick="return confirm('¿Seguro que quieres eliminar esta presentación?');">
                                 Eliminar presentación
                             </a>
-
                         <?php } ?>
+                        </div>
 
                     </td>
 
@@ -135,7 +128,9 @@ $resultado = $conexion->query($sql);
 
         </tbody>
 
-    </table>
+        </table>
+        </div>
+    </main>
 
 </body>
 

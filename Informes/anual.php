@@ -7,6 +7,11 @@ if (!isset($_SESSION["id_usuario"])) {
 }
 
 require_once __DIR__ . "/../config/conexion.php";
+require_once __DIR__ . "/../config/unidad_contexto.php";
+$contextoUnidadInforme = unidadObtenerContexto($conexion);
+$soloConsulta = $contextoUnidadInforme["solo_consulta"];
+require_once __DIR__ . "/../exportar_importar/funciones.php";
+asegurarEsquemaExportacionUnidad($conexion);
 
 $periodoAnual = $_SERVER["REQUEST_METHOD"] === "POST" ? $_POST : $_GET;
 $anioRecibido = $periodoAnual["anio"] ?? (int)date("Y");
@@ -198,6 +203,27 @@ if (!$stmtMetas) {
     die("Error al preparar la consulta de metas anuales: " . $conexion->error);
 }
 $idUnidadInformeAnual = (int)$datosPaloteoAnual["idUnidad"];
+$stmtEncabezadosAnuales = $conexion->prepare(
+    "SELECT clave, valor
+     FROM INFORME_ANUAL_ENCABEZADO
+     WHERE id_unidad = ?"
+);
+if (!$stmtEncabezadosAnuales) {
+    die("Error al preparar la consulta de encabezados anuales: " . $conexion->error);
+}
+$stmtEncabezadosAnuales->bind_param("i", $idUnidadInformeAnual);
+if (!$stmtEncabezadosAnuales->execute()) {
+    die("Error al consultar los encabezados anuales: " . $stmtEncabezadosAnuales->error);
+}
+$encabezadosInformeAnual = [];
+$resultadoEncabezadosAnuales = $stmtEncabezadosAnuales->get_result();
+while ($filaEncabezadoAnual = $resultadoEncabezadosAnuales->fetch_assoc()) {
+    if (in_array($filaEncabezadoAnual["clave"], ["C4", "C5"], true)) {
+        $encabezadosInformeAnual[$filaEncabezadoAnual["clave"]] =
+            (string)$filaEncabezadoAnual["valor"];
+    }
+}
+$stmtEncabezadosAnuales->close();
 $stmtMetas->bind_param("ii", $idUnidadInformeAnual, $anioInformeAnual);
 if (!$stmtMetas->execute()) {
     die("Error al consultar las metas anuales: " . $stmtMetas->error);
@@ -212,7 +238,15 @@ $stmtMetas->close();
 
 $metasRecibidas = null;
 $encabezadosRecibidos = [];
+$guardarMetasAnuales = $_SERVER["REQUEST_METHOD"] === "POST"
+    && (
+        ($_POST["guardar_metas"] ?? "") === "1"
+        || (!$soloConsulta && ($_POST["descargar"] ?? "") === "1")
+    );
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
+    if ($guardarMetasAnuales) {
+        unidadExigirPermisoEscritura();
+    }
     $encabezadosPost = $_POST["encabezados"] ?? [];
     if (!is_array($encabezadosPost)) {
         http_response_code(400);
@@ -245,9 +279,10 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         $metasRecibidas[$claveMeta] = (float)$valorMeta;
     }
 
-    if (!$conexion->begin_transaction()) {
-        die("No fue posible iniciar el guardado de las metas anuales: " . $conexion->error);
-    }
+    if ($guardarMetasAnuales) {
+        if (!$conexion->begin_transaction()) {
+            die("No fue posible iniciar el guardado de las metas anuales: " . $conexion->error);
+        }
     $stmtGuardarMeta = $conexion->prepare(
         "INSERT INTO INFORME_ANUAL_META (id_unidad, anio, clave, meta, id_usuario)
          VALUES (?, ?, ?, ?, ?)
@@ -277,13 +312,45 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         }
     }
     $stmtGuardarMeta->close();
-    if (!$conexion->commit()) {
+    $stmtGuardarEncabezado = $conexion->prepare(
+        "INSERT INTO INFORME_ANUAL_ENCABEZADO
+            (id_unidad, clave, valor, id_usuario)
+         VALUES (?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE
+            valor = VALUES(valor),
+            id_usuario = VALUES(id_usuario)"
+    );
+    if (!$stmtGuardarEncabezado) {
         $conexion->rollback();
-        die("No fue posible confirmar el guardado de las metas anuales: " . $conexion->error);
+        die("Error al preparar el guardado de encabezados anuales: " . $conexion->error);
+    }
+    $claveEncabezadoGuardar = "";
+    $valorEncabezadoGuardar = "";
+    $stmtGuardarEncabezado->bind_param(
+        "issi",
+        $idUnidadInformeAnual,
+        $claveEncabezadoGuardar,
+        $valorEncabezadoGuardar,
+        $idUsuarioInformeAnual
+    );
+    foreach ($encabezadosRecibidos as $claveEncabezadoGuardar => $valorEncabezadoGuardar) {
+        if (!$stmtGuardarEncabezado->execute()) {
+            $errorGuardarEncabezado = $stmtGuardarEncabezado->error;
+            $stmtGuardarEncabezado->close();
+            $conexion->rollback();
+            die("Error al guardar los encabezados anuales: " . $errorGuardarEncabezado);
+        }
+    }
+    $stmtGuardarEncabezado->close();
+        if (!$conexion->commit()) {
+            $conexion->rollback();
+            die("No fue posible confirmar el guardado de las metas anuales: " . $conexion->error);
+        }
     }
     $metasInformeAnual = $metasRecibidas;
+    $encabezadosInformeAnual = $encabezadosRecibidos;
 
-    if (($_POST["descargar"] ?? "") !== "1") {
+    if ($guardarMetasAnuales && ($_POST["descargar"] ?? "") !== "1") {
         header("Location: anual.php?anio=" . $anioInformeAnual . "&guardado=1");
         exit();
     }
@@ -605,8 +672,16 @@ $ponerActualizacionAnual = function ($coordenada, $valor, $texto = false, $calcu
         "calculo" => $calculo
     ];
 };
-$ponerActualizacionAnual("C4", $leerCeldaAnual("C4"), true);
-$ponerActualizacionAnual("C5", $datosPaloteoAnual["nombreUnidad"], true);
+$ponerActualizacionAnual(
+    "C4",
+    $encabezadosInformeAnual["C4"] ?? $leerCeldaAnual("C4"),
+    true
+);
+$ponerActualizacionAnual(
+    "C5",
+    $encabezadosInformeAnual["C5"] ?? $datosPaloteoAnual["nombreUnidad"],
+    true
+);
 $ponerActualizacionAnual("C6", (string)$anioInformeAnual, true);
 foreach ($encabezadosRecibidos as $coordenadaEncabezado => $valorEncabezado) {
     $ponerActualizacionAnual($coordenadaEncabezado, $valorEncabezado, true);
@@ -1050,7 +1125,9 @@ for ($numeroFilaAnual = 2; $numeroFilaAnual <= 57; $numeroFilaAnual++) {
                 Imprimir
             </button>
             <span class="estado" aria-live="polite">
-                <?php echo isset($_GET["guardado"]) ? "Metas guardadas." : "Las metas se guardan por unidad y año."; ?>
+                <?php echo $soloConsulta
+                    ? "Modo de consulta."
+                    : (isset($_GET["guardado"]) ? "Metas guardadas." : "Las metas se guardan por unidad y año."); ?>
             </span>
         </div>
     </form>
@@ -1060,15 +1137,17 @@ for ($numeroFilaAnual = 2; $numeroFilaAnual <= 57; $numeroFilaAnual++) {
         <input type="hidden" name="encabezados[C4]" data-encabezado-valor="C4" value="<?php echo escaparInformeAnual($actualizacionesAnuales["C4"]["valor"]); ?>">
         <input type="hidden" name="encabezados[C5]" data-encabezado-valor="C5" value="<?php echo escaparInformeAnual($actualizacionesAnuales["C5"]["valor"]); ?>">
         <div class="barra">
+            <?php if (!$soloConsulta): ?>
             <button type="submit" name="guardar_metas" value="1" title="Guardar metas por unidad y año" aria-label="Guardar metas">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h12l4 4v14H3V3z"></path><path d="M7 3v6h10V3M7 21v-8h10v8"></path></svg>
                 Guardar metas
             </button>
+            <?php endif; ?>
             <button type="submit" name="descargar" value="1" title="Descargar formato anual oficial" aria-label="Descargar Excel anual">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0 5-5m-5 5-5-5"></path><path d="M5 17v4h14v-4"></path></svg>
                 Descargar Excel
             </button>
-            <span class="estado" id="estado-encabezados" aria-live="polite">Los encabezados se guardan en este navegador.</span>
+            <span class="estado" id="estado-encabezados" aria-live="polite">Guarda las metas para incluir los encabezados en el paquete de la unidad.</span>
         </div>
         <div class="hoja-scroll">
             <table class="hoja-anual">
@@ -1111,6 +1190,7 @@ for ($numeroFilaAnual = 2; $numeroFilaAnual <= 57; $numeroFilaAnual++) {
                                             data-meta="<?php echo escaparInformeAnual($celdaVistaAnual["meta"]); ?>"
                                             aria-label="Meta anual de <?php echo escaparInformeAnual(str_replace("_", " ", $celdaVistaAnual["meta"])); ?>"
                                             value="<?php echo escaparInformeAnual(number_format((float)$metasInformeAnual[$celdaVistaAnual["meta"]], 2, ".", "")); ?>"
+                                            <?php echo $soloConsulta ? "readonly" : ""; ?>
                                         >
                                     <?php elseif ($calculoCeldaAnual): ?>
                                         <?php
@@ -1133,7 +1213,7 @@ for ($numeroFilaAnual = 2; $numeroFilaAnual <= 57; $numeroFilaAnual++) {
                                     <?php elseif (in_array($celdaVistaAnual["coordenada"], ["C4", "C5"], true)): ?>
                                         <span
                                             class="encabezado-editable"
-                                            contenteditable="true"
+                                            contenteditable="<?php echo $soloConsulta ? "false" : "true"; ?>"
                                             role="textbox"
                                             aria-label="<?php echo $celdaVistaAnual["coordenada"] === "C4" ? "CLUES" : "Nombre de la unidad"; ?>"
                                             spellcheck="false"
@@ -1228,7 +1308,7 @@ echo json_encode(
                             claveAlmacenamiento,
                             JSON.stringify(valoresActuales)
                         );
-                        estado.textContent = "Encabezados guardados en este navegador.";
+                        estado.textContent = "Guardados en este navegador; presiona «Guardar metas» para incluirlos en el paquete.";
                     } catch (_error) {
                         estado.textContent = "No fue posible guardar los encabezados en este navegador.";
                     }

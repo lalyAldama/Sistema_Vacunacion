@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . "/../config/seguridad_administrador.php";
 require_once "../config/conexion.php";
 
 
@@ -55,16 +56,24 @@ if (isset($_POST['guardar'])) {
 
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Nueva Presentación</title>
     <link rel="stylesheet" href="../css/estilos.css">
+    <link rel="stylesheet" href="../css/gestion_admin.css">
 </head>
 
-<body>
+<body class="gestion-admin">
+    <main class="gestion-contenedor">
+    <header class="gestion-encabezado">
+        <div class="gestion-encabezado-texto">
+            <span class="gestion-etiqueta">ADMINISTRACIÓN · BIOLÓGICOS</span>
+            <h1>Nueva presentación</h1>
+            <p>Define la presentación y el contenido de un biológico.</p>
+        </div>
+        <a class="gestion-volver" href="index.php">Volver al catálogo</a>
+    </header>
 
-    <h1>Nueva presentación</h1>
-
-
-    <form action="guardar_presentacion.php" method="POST">
+    <form class="gestion-formulario" action="guardar_presentacion.php" method="POST">
 
 
         <!-- Biológico -->
@@ -141,15 +150,11 @@ if (isset($_POST['guardar'])) {
         </button>
 
 
-        <a href="index.php">
-            <button type="button">
-                Cancelar
-            </button>
-        </a>
+        <a class="btn gestion-btn-secundario" href="index.php">Cancelar</a>
 
 
     </form>
-
+    </main>
 </body>
 
 </html>
