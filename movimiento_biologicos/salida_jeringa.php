@@ -8,9 +8,11 @@ if (!isset($_SESSION["id_usuario"])) {
 
 require_once "../config/conexion.php";
 require_once __DIR__ . "/../config/unidad_contexto.php";
+require_once __DIR__ . "/../exportar_importar/correcciones_funciones.php";
 $contextoUnidad = unidadObtenerContexto($conexion);
 unidadExigirPermisoEscritura();
 $idUnidad = $contextoUnidad["id_unidad"];
+correccionesAsegurarRegistroCentral($conexion);
 
 $resultadoJeringas = $conexion->query("SELECT id_jeringa, tipo FROM JERINGA ORDER BY tipo");
 if (!$resultadoJeringas) {
@@ -49,8 +51,23 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             die("Error al preparar el registro de salida: " . htmlspecialchars($conexion->error, ENT_QUOTES, "UTF-8"));
         }
         $stmt->bind_param("iissii", $idJeringa, $idUnidad, $tipoMovimiento, $fecha, $cantidadValidada, $necesidadValidada);
+        $conexion->begin_transaction();
         if (!$stmt->execute()) {
+            $conexion->rollback();
             die("Error al registrar la salida de jeringas: " . htmlspecialchars($stmt->error, ENT_QUOTES, "UTF-8"));
+        }
+        $idMovimientoCentral = (int)$conexion->insert_id;
+        correccionesRegistrarCambio($conexion, (int)$idUnidad, "MOVIMIENTO_JERINGA", [
+            "id_movimiento_central" => $idMovimientoCentral,
+            "id_jeringa" => (int)$idJeringa,
+            "tipo_movimiento" => $tipoMovimiento,
+            "fecha_movimiento" => (string)$fecha,
+            "cantidad_jeringas" => (int)$cantidadValidada,
+            "necesidad" => (int)$necesidadValidada
+        ]);
+        if (!$conexion->commit()) {
+            $conexion->rollback();
+            die("No se pudo confirmar el movimiento de jeringas.");
         }
         $stmt->close();
         header("Location: index.php?jeringas=registrado#jeringas");

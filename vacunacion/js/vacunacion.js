@@ -17,6 +17,10 @@ const seccionClasificacionSr = document.getElementById("seccion-clasificacion-sr
 const clasificacionSr = document.getElementById("clasificacion-sr");
 const seccionClasificacionVaricelaHepatitisA = document.getElementById("seccion-clasificacion-varicela-hepatitis-a");
 const clasificacionVaricelaHepatitisA = document.getElementById("clasificacion-varicela-hepatitis-a");
+const seccionRezagoVaricela = document.getElementById("seccion-rezago-varicela");
+const rezagoVaricela = document.getElementById("rezago-varicela");
+const seccionClasificacionDpt = document.getElementById("seccion-clasificacion-dpt");
+const sinAntecedenteDpt = document.getElementById("sin-antecedente-dpt");
 const fechaAplicacion = document.getElementById("fecha_aplicacion");
 
 function actualizarDosisCero() {
@@ -87,30 +91,80 @@ function actualizarClasificacionSr() {
 
 function actualizarClasificacionVaricelaHepatitisA() {
     const idSeleccionado = String(vacuna.value);
-    const esVaricela = idBiologicoVaricela !== null
-        && idSeleccionado === String(idBiologicoVaricela);
     const esHepatitisA = idBiologicoHepatitisA !== null
         && idSeleccionado === String(idBiologicoHepatitisA);
-    const requiereClasificacion = esVaricela || esHepatitisA;
-    seccionClasificacionVaricelaHepatitisA.hidden = !requiereClasificacion;
-    clasificacionVaricelaHepatitisA.disabled = !requiereClasificacion;
-    clasificacionVaricelaHepatitisA.required = requiereClasificacion;
+    seccionClasificacionVaricelaHepatitisA.hidden = !esHepatitisA;
+    clasificacionVaricelaHepatitisA.disabled = !esHepatitisA;
+    clasificacionVaricelaHepatitisA.required = false;
     clasificacionVaricelaHepatitisA.replaceChildren(
-        new Option("SELECCIONE", ""),
-        ...(esVaricela
+        new Option("NINGUNA (AUTOMÁTICA A LOS 18 MESES)", ""),
+        ...(esHepatitisA
             ? [
-                new Option("Única 1 año", "rutina"),
-                new Option("Rezagos 2 a 4 años", "rezago")
+                new Option("Rezagos 2 a 4 años", "rezago"),
+                new Option("Población en riesgo", "riesgo")
             ]
-            : esHepatitisA
-                ? [
-                    new Option("Única 18 meses", "rutina"),
-                    new Option("Rezagos 2 a 4 años", "rezago"),
-                    new Option("Población en riesgo", "riesgo")
-                ]
-                : [])
+            : [])
     );
     clasificacionVaricelaHepatitisA.value = "";
+}
+
+function edadEnAniosAlAplicar() {
+    const nacimientoMs = Date.parse(fechaNacimientoPaciente + "T00:00:00Z");
+    const aplicacionMs = Date.parse(fechaAplicacion.value + "T00:00:00Z");
+    if (!Number.isFinite(nacimientoMs) || !Number.isFinite(aplicacionMs) || aplicacionMs < nacimientoMs) {
+        return null;
+    }
+
+    const nacimiento = new Date(nacimientoMs);
+    const aplicacion = new Date(aplicacionMs);
+    let edad = aplicacion.getUTCFullYear() - nacimiento.getUTCFullYear();
+    if (
+        aplicacion.getUTCMonth() < nacimiento.getUTCMonth()
+        || (
+            aplicacion.getUTCMonth() === nacimiento.getUTCMonth()
+            && aplicacion.getUTCDate() < nacimiento.getUTCDate()
+        )
+    ) {
+        edad--;
+    }
+    return edad;
+}
+
+function actualizarRezagoVaricela() {
+    const edad = edadEnAniosAlAplicar();
+    const corresponde = idBiologicoVaricela !== null
+        && String(vacuna.value) === String(idBiologicoVaricela)
+        && edad !== null
+        && edad >= 2
+        && edad <= 4;
+    seccionRezagoVaricela.hidden = !corresponde;
+    rezagoVaricela.disabled = !corresponde;
+    rezagoVaricela.required = corresponde;
+    if (!corresponde) {
+        rezagoVaricela.checked = false;
+    }
+}
+
+function actualizarClasificacionDpt() {
+    const dosisSeleccionada = datosDosis.find(function(item) {
+        return String(item.id_esquema_biologico_dosis) === String(dosis.value);
+    });
+    const nombreDosis = dosisSeleccionada
+        ? dosisSeleccionada.nombre_dosis.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+        : "";
+    const edad = edadEnAniosAlAplicar();
+    const corresponde = idBiologicoDpt !== null
+        && String(vacuna.value) === String(idBiologicoDpt)
+        && nombreDosis.includes("unica")
+        && edad !== null
+        && edad >= 5
+        && edad <= 6;
+
+    seccionClasificacionDpt.hidden = !corresponde;
+    sinAntecedenteDpt.disabled = !corresponde;
+    if (!corresponde) {
+        sinAntecedenteDpt.checked = false;
+    }
 }
 
 function cargarLotes(idBiologico) {
@@ -272,6 +326,8 @@ vacuna.addEventListener("change", function() {
         actualizarClasificacionHepatitisB();
         actualizarClasificacionSr();
         actualizarClasificacionVaricelaHepatitisA();
+        actualizarRezagoVaricela();
+        actualizarClasificacionDpt();
         return;
     }
 
@@ -294,16 +350,23 @@ vacuna.addEventListener("change", function() {
     actualizarClasificacionHepatitisB();
     actualizarClasificacionSr();
     actualizarClasificacionVaricelaHepatitisA();
+    actualizarRezagoVaricela();
+    actualizarClasificacionDpt();
 });
 
 reemplazo.addEventListener("change", actualizarModoReemplazo);
 biologicoReemplazo.addEventListener("change", actualizarLotes);
 dosis.addEventListener("change", actualizarClasificacionHepatitisB);
+dosis.addEventListener("change", actualizarClasificacionDpt);
 fechaAplicacion.addEventListener("change", actualizarClasificacionHepatitisB);
 fechaAplicacion.addEventListener("change", actualizarDosisCero);
+fechaAplicacion.addEventListener("change", actualizarRezagoVaricela);
+fechaAplicacion.addEventListener("change", actualizarClasificacionDpt);
 actualizarPreguntaReemplazo();
 actualizarDosisCero();
 actualizarClasificacionVph();
 actualizarClasificacionHepatitisB();
 actualizarClasificacionSr();
 actualizarClasificacionVaricelaHepatitisA();
+actualizarRezagoVaricela();
+actualizarClasificacionDpt();

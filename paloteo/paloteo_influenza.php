@@ -8,9 +8,11 @@ if (!isset($_SESSION["id_usuario"])) {
 
 require_once __DIR__ . "/../config/conexion.php";
 require_once __DIR__ . "/../config/unidad_contexto.php";
+require_once __DIR__ . "/../exportar_importar/correcciones_funciones.php";
 $contextoUnidad = unidadObtenerContexto($conexion);
 $idUnidad = $contextoUnidad["id_unidad"];
 $soloConsulta = $contextoUnidad["solo_consulta"];
+correccionesAsegurarRegistroCentral($conexion);
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
     unidadExigirPermisoEscritura();
 }
@@ -378,8 +380,30 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                     die("Error al preparar el guardado del paloteo: " . $conexion->error);
                 }
                 $stmtGuardar->bind_param("iiisi", $idUnidad, $anio, $mes, $datosJson, $idUsuario);
+                $conexion->begin_transaction();
                 if (!$stmtGuardar->execute()) {
+                    $conexion->rollback();
                     die("Error al guardar el paloteo: " . $stmtGuardar->error);
+                }
+                $stmtIdPaloteo = $conexion->prepare(
+                    "SELECT id_paloteo FROM PALOTEO_INFLUENZA WHERE id_unidad = ? AND anio = ? AND mes = ? LIMIT 1"
+                );
+                $stmtIdPaloteo->bind_param("iii", $idUnidad, $anio, $mes);
+                if (!$stmtIdPaloteo->execute()) {
+                    $conexion->rollback();
+                    die("No se pudo consultar el identificador del paloteo.");
+                }
+                $idPaloteoCentral = (int)$stmtIdPaloteo->get_result()->fetch_assoc()["id_paloteo"];
+                $stmtIdPaloteo->close();
+                correccionesRegistrarCambio($conexion, (int)$idUnidad, "PALOTEO_INFLUENZA", [
+                    "id_paloteo_central" => $idPaloteoCentral,
+                    "anio" => (int)$anio,
+                    "mes" => (int)$mes,
+                    "datos_json" => $datosJson
+                ]);
+                if (!$conexion->commit()) {
+                    $conexion->rollback();
+                    die("No se pudo confirmar el guardado del paloteo.");
                 }
                 $stmtGuardar->close();
                 header("Location: paloteo_influenza.php?mes={$mes}&anio={$anio}&guardado=1");

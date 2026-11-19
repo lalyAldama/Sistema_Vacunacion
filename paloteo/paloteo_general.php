@@ -8,6 +8,7 @@ if (!isset($_SESSION["id_usuario"])) {
 
 require_once __DIR__ . "/../config/conexion.php";
 require_once __DIR__ . "/../config/unidad_contexto.php";
+require_once __DIR__ . "/../exportar_importar/correcciones_funciones.php";
 require_once __DIR__ . "/../vacunacion/funciones_vph.php";
 asegurarEsquemaVph($conexion);
 asegurarClasificacionHepatitisB($conexion);
@@ -94,6 +95,7 @@ $solicitudInforme = defined("INFORME_ANUAL_SOLICITANDO_CONTEOS")
 $contextoUnidad = unidadObtenerContexto($conexion);
 $idUnidad = $contextoUnidad["id_unidad"];
 $soloConsulta = $contextoUnidad["solo_consulta"];
+correccionesAsegurarRegistroCentral($conexion);
 if ($_SERVER["REQUEST_METHOD"] === "POST" && !$solicitudInforme) {
     unidadExigirPermisoEscritura();
 }
@@ -503,6 +505,7 @@ $prefijosFamilia = [
 
 $sqlAplicaciones = "SELECT
                         av.id_aplicacion_vacuna,
+                        av.id_paciente,
                         av.fecha_aplicacion,
                         av.clasificacion_vph,
                         av.clasificacion_hepatitis_b,
@@ -517,6 +520,7 @@ $sqlAplicaciones = "SELECT
                         p.estatus_migratorio,
                         p.poblacion_indigena_afromexicana,
                         d.nombre_dosis,
+                        eb.id_biologico,
                         b.nombre_biologico AS nombre_biologico_indicado,
                         COALESCE(b_aplicado.nombre_biologico, b.nombre_biologico) AS nombre_biologico,
                         (
@@ -548,6 +552,7 @@ if (!$stmtAplicaciones->execute()) {
     die("Error al consultar las aplicaciones del periodo: " . $stmtAplicaciones->error);
 }
 $resultadoAplicaciones = $stmtAplicaciones->get_result();
+$stmtHistorialNeumo = null;
 $aplicacionesSinClasificar = 0;
 $aplicacionesSinClasificarPorFamilia = [];
 $aplicacionesSinClasificarDetalle = [];
@@ -654,7 +659,11 @@ while ($aplicacion = $resultadoAplicaciones->fetch_assoc()) {
             if (
                 ($familiaCandidata === "td" && $nombreBiologico === "td")
                 || ($familiaCandidata === "sr" && ($nombreBiologico === "sr" || str_starts_with($nombreBiologico, "srdoble")))
-                || ($familiaCandidata !== "td" && $familiaCandidata !== "sr" && str_contains($nombreBiologico, $alias))
+                || ($familiaCandidata === "hepatitisa" && str_contains($biologicoCompacto, $alias))
+                || (
+                    !in_array($familiaCandidata, ["td", "sr", "hepatitisa"], true)
+                    && str_contains($nombreBiologico, $alias)
+                )
             ) {
                 $familia = $familiaCandidata;
                 break 2;
@@ -839,7 +848,9 @@ while ($aplicacion = $resultadoAplicaciones->fetch_assoc()) {
         }
     } elseif ($esReemplazoDptHexavalente) {
         $edadAniosAplicacion = $fechaNacimiento->diff($fechaAplicacion)->y;
-        if ($edadAniosAplicacion >= 5 && $edadAniosAplicacion <= 6 && $codigoDosis === "unica") {
+        if ($edadAniosAplicacion === 4 && $codigoDosis === "unica") {
+            $filaEncontrada = "hexa_4";
+        } elseif ($edadAniosAplicacion >= 5 && $edadAniosAplicacion <= 6 && $codigoDosis === "unica") {
             $filaEncontrada = "dpt_4_6";
         }
     } elseif ($familia === "vsr") {
@@ -864,6 +875,89 @@ while ($aplicacion = $resultadoAplicaciones->fetch_assoc()) {
         && $fechaNacimiento->diff($fechaAplicacion)->y <= 6
     ) {
         $filaEncontrada = "dpt_rescate_5_6";
+    } elseif (
+        $familia === "neumococo"
+        && $codigoDosis === "tercera"
+        && $edadMeses >= 12
+        && $edadMeses < 24
+    ) {
+        $idPacienteHistorial = (string)$aplicacion["id_paciente"];
+        $idBiologicoHistorial = (int)$aplicacion["id_biologico"];
+        if ($idPacienteHistorial === "" || $idBiologicoHistorial < 1) {
+            die("No se pudo identificar al paciente o al biológico para revisar el historial neumocócico.");
+        }
+        if ($stmtHistorialNeumo === null) {
+            $sqlHistorialNeumo = "SELECT
+                                      d_historial.nombre_dosis,
+                                      av_historial.fecha_aplicacion
+                                  FROM APLICACION_VACUNA av_historial
+                                  INNER JOIN ESQUEMA_BIOLOGICO_DOSIS ebd_historial
+                                      ON ebd_historial.id_esquema_biologico_dosis =
+                                          av_historial.id_esquema_biologico_dosis
+                                  INNER JOIN ESQUEMA_BIOLOGICO eb_historial
+                                      ON eb_historial.id_esquema_biologico =
+                                          ebd_historial.id_esquema_biologico
+                                  INNER JOIN DOSIS d_historial
+                                      ON d_historial.id_dosis = ebd_historial.id_dosis
+                                  WHERE av_historial.id_paciente = ?
+                                      AND eb_historial.id_biologico = ?
+                                      AND av_historial.fecha_aplicacion < ?
+                                  ORDER BY av_historial.fecha_aplicacion";
+            $stmtHistorialNeumo = $conexion->prepare($sqlHistorialNeumo);
+            if (!$stmtHistorialNeumo) {
+                die("Error al preparar la consulta del historial neumocócico: " . $conexion->error);
+            }
+        }
+
+        $fechaAplicacionHistorial = $fechaAplicacion->format("Y-m-d");
+        $stmtHistorialNeumo->bind_param(
+            "sis",
+            $idPacienteHistorial,
+            $idBiologicoHistorial,
+            $fechaAplicacionHistorial
+        );
+        if (!$stmtHistorialNeumo->execute()) {
+            die("Error al consultar el historial neumocócico: " . $stmtHistorialNeumo->error);
+        }
+        $resultadoHistorialNeumo = $stmtHistorialNeumo->get_result();
+        if (!$resultadoHistorialNeumo) {
+            die("No se pudo leer el historial neumocócico: " . $stmtHistorialNeumo->error);
+        }
+
+        $tienePrimeraAntesDelAno = false;
+        $tieneSegundaAntesDelAno = false;
+        while ($dosisHistorialNeumo = $resultadoHistorialNeumo->fetch_assoc()) {
+            $fechaDosisHistorial = DateTimeImmutable::createFromFormat(
+                "!Y-m-d",
+                (string)$dosisHistorialNeumo["fecha_aplicacion"]
+            );
+            if (
+                !$fechaDosisHistorial
+                || $fechaDosisHistorial->format("Y-m-d") !== (string)$dosisHistorialNeumo["fecha_aplicacion"]
+            ) {
+                die("El historial neumocócico contiene una fecha de aplicación inválida.");
+            }
+            if ($fechaDosisHistorial < $fechaNacimiento) {
+                continue;
+            }
+            if ($fechaNacimiento->diff($fechaDosisHistorial)->y >= 1) {
+                continue;
+            }
+
+            $codigoDosisHistorial = $obtenerDosisPaloteo($dosisHistorialNeumo["nombre_dosis"]);
+            if ($codigoDosisHistorial === "primera") {
+                $tienePrimeraAntesDelAno = true;
+            } elseif ($codigoDosisHistorial === "segunda") {
+                $tieneSegundaAntesDelAno = true;
+            }
+            if ($tienePrimeraAntesDelAno && $tieneSegundaAntesDelAno) {
+                break;
+            }
+        }
+        $resultadoHistorialNeumo->free();
+        $filaEncontrada = $tienePrimeraAntesDelAno && $tieneSegundaAntesDelAno
+            ? "neumo_3"
+            : "neumo_rescate3";
     } elseif ($familia === "bcg") {
         $edadDias = (int)$fechaNacimiento->diff($fechaAplicacion)->days;
         $edadAnios = $fechaNacimiento->diff($fechaAplicacion)->y;
@@ -1224,6 +1318,9 @@ while ($aplicacion = $resultadoAplicaciones->fetch_assoc()) {
         (int)$aplicacion["poblacion_indigena_afromexicana"] === 1
     );
 }
+if ($stmtHistorialNeumo !== null) {
+    $stmtHistorialNeumo->close();
+}
 $stmtAplicaciones->close();
 
 $sqlAplicacionesVphAnonimas = "SELECT
@@ -1402,8 +1499,30 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                     $datosJson,
                     $idUsuario
                 );
+                $conexion->begin_transaction();
                 if (!$stmtGuardar->execute()) {
+                    $conexion->rollback();
                     die("Error al guardar el paloteo: " . $stmtGuardar->error);
+                }
+                $stmtIdPaloteo = $conexion->prepare(
+                    "SELECT id_paloteo FROM PALOTEO_GENERAL WHERE id_unidad = ? AND anio = ? AND mes = ? LIMIT 1"
+                );
+                $stmtIdPaloteo->bind_param("iii", $idUnidad, $anio, $mes);
+                if (!$stmtIdPaloteo->execute()) {
+                    $conexion->rollback();
+                    die("No se pudo consultar el identificador del paloteo.");
+                }
+                $idPaloteoCentral = (int)$stmtIdPaloteo->get_result()->fetch_assoc()["id_paloteo"];
+                $stmtIdPaloteo->close();
+                correccionesRegistrarCambio($conexion, (int)$idUnidad, "PALOTEO_GENERAL", [
+                    "id_paloteo_central" => $idPaloteoCentral,
+                    "anio" => (int)$anio,
+                    "mes" => (int)$mes,
+                    "datos_json" => $datosJson
+                ]);
+                if (!$conexion->commit()) {
+                    $conexion->rollback();
+                    die("No se pudo confirmar el guardado del paloteo.");
                 }
                 $stmtGuardar->close();
 
@@ -1481,6 +1600,9 @@ $guardado = ($_GET["guardado"] ?? "") === "1";
         .secundario { background: #e7eef2; color: #18384c; }
         .estado { width: 100%; margin: 0; color: #176b54; font-weight: 700; }
         .error { width: 100%; margin: 0; padding: 10px; color: #8a1f11; background: #fff0ed; border: 1px solid #e6b5ad; }
+        .error p { margin: 0; }
+        .error details { margin-top: 8px; }
+        .error li + li { margin-top: 6px; }
         .hoja { overflow: hidden; }
         .encabezado { padding: 18px 22px 14px; border-bottom: 2px solid #18384c; }
         .barra-institucional { display: flex; justify-content: space-between; gap: 20px; align-items: start; font-size: 11px; font-weight: 700; }
@@ -1492,14 +1614,15 @@ $guardado = ($_GET["guardado"] ?? "") === "1";
         .dato .valor-unidad { padding: 3px 4px; border-bottom: 1px solid #607988; }
         .valor-impresion { display: none; }
         .nota { margin: 12px 0; padding: 0 20px; color: #516675; font-size: 12px; }
-        .tabla-contenedor { overflow: auto; border-top: 1px solid #aebdc7; }
+        .tabla-contenedor { max-height: 70vh; min-height: 300px; overflow: auto; border-top: 1px solid #aebdc7; }
         table { width: max-content; min-width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 10px; }
-        thead { position: sticky; top: 0; z-index: 1; }
+        thead { position: sticky; top: 0; z-index: 6; }
         th, td { border: 1px solid #9cadb8; padding: 3px 2px; text-align: center; }
         thead th { background: #e5edf1; color: #17364b; font-size: 9px; }
-        th.biologico, td.biologico { width: 175px; min-width: 175px; text-align: left; }
-        th.grupo, td.grupo { width: 210px; min-width: 210px; text-align: left; }
-        th.detalle, td.detalle { width: 135px; min-width: 135px; text-align: left; }
+        th.biologico, td.biologico { position: sticky; left: 0; width: 175px; min-width: 175px; text-align: left; z-index: 2; background: #fff; }
+        th.grupo, td.grupo { position: sticky; left: 175px; width: 210px; min-width: 210px; text-align: left; z-index: 2; background: #fff; }
+        th.detalle, td.detalle { position: sticky; left: 385px; width: 135px; min-width: 135px; text-align: left; z-index: 2; background: #fff; }
+        thead th.biologico, thead th.grupo, thead th.detalle { z-index: 8; background: #e5edf1; }
         th.dia, td.dia { width: 52px; min-width: 52px; }
         th.total, td.total { width: 85px; min-width: 85px; background: #f0f5f7; font-weight: 700; }
         tbody tr:nth-child(even) { background: #f8fafb; }
@@ -1509,7 +1632,6 @@ $guardado = ($_GET["guardado"] ?? "") === "1";
         .titulo-pagina { margin: 0; padding: 10px; text-align: center; font-size: 13px; }
         .formato-pagina + .formato-pagina { margin-top: 20px; }
         .ajuste { width: 40px; max-width: 100%; padding: 2px 1px; border: 1px solid #c4d0d7; border-radius: 3px; text-align: center; font-size: 10px; }
-        .mas { color: #768894; }
         .conteo-impresion { display: none; }
         tfoot th { background: #dce7ec; font-size: 10px; }
         .pie { padding: 12px 18px; color: #526977; font-size: 11px; }
@@ -1523,7 +1645,7 @@ $guardado = ($_GET["guardado"] ?? "") === "1";
             @page { size: A3 portrait; margin: 5mm; }
             body { padding: 0; background: #fff; }
             .pagina, .hoja { width: 100%; max-width: none; margin: 0; border: 0; border-radius: 0; box-shadow: none; }
-            .barra, .nota, .ajuste, .mas, .conteo-auto { display: none !important; }
+            .barra, .nota, .ajuste, .conteo-auto { display: none !important; }
             .hoja { overflow: visible; }
             .formato-pagina { break-after: page; page-break-after: always; }
             .formato-pagina:last-child { break-after: auto; page-break-after: auto; }
@@ -1534,9 +1656,10 @@ $guardado = ($_GET["guardado"] ?? "") === "1";
             .datos { margin-top: 3mm; }
             .dato input { display: none; }
             .dato .valor-unidad, .dato .valor-impresion { display: inline; border-bottom: 1px solid #333; padding: 1px 3px; }
-            .tabla-contenedor { overflow: visible; }
+            .tabla-contenedor { max-height: none; min-height: 0; overflow: visible; }
             table { width: 100%; min-width: 0; table-layout: fixed; font-size: 5.5pt; }
             thead { position: static; }
+            th.biologico, td.biologico, th.grupo, td.grupo, th.detalle, td.detalle { position: static; left: auto; z-index: auto; }
             th, td { padding: 1px; border-color: #555; }
             thead th { font-size: 6pt; }
             th.biologico, td.biologico { width: 28mm; min-width: 0; }
@@ -1634,8 +1757,26 @@ $guardado = ($_GET["guardado"] ?? "") === "1";
             </div>
         </header>
         <?php if ($aplicacionesSinClasificar > 0): ?>
-            <p class="error" role="status"><?php echo $aplicacionesSinClasificar; ?> aplicación(es) no se pudieron ubicar automáticamente en los grupos oficiales; verifica el grupo correspondiente y captura el ajuste manual.</p>
+            <div class="error" role="status">
+                <p><?php echo $aplicacionesSinClasificar; ?> aplicación(es) no se pudieron ubicar automáticamente en los grupos oficiales; verifica el grupo correspondiente y captura el ajuste manual.</p>
+                <details>
+                    <summary>Ver detalle de las aplicaciones sin clasificar</summary>
+                    <ul>
+                        <?php foreach ($aplicacionesSinClasificarDetalle as $detalleSinClasificar): ?>
+                            <li>
+                                <strong>Fecha:</strong> <?php echo escapar($detalleSinClasificar["fecha"] ?? ""); ?>;
+                                <strong>Biológico aplicado:</strong> <?php echo escapar($detalleSinClasificar["biologico"] ?? ""); ?>;
+                                <strong>Biológico indicado:</strong> <?php echo escapar($detalleSinClasificar["biologicoIndicado"] ?? ""); ?>;
+                                <strong>Dosis:</strong> <?php echo escapar($detalleSinClasificar["dosis"] ?? ""); ?>;
+                                <strong>Edad calculada:</strong> <?php echo escapar($detalleSinClasificar["edad"] ?? ""); ?>;
+                                <strong>Motivo:</strong> <?php echo escapar($detalleSinClasificar["motivo"] ?? ""); ?>
+                            </li>
+                        <?php endforeach; ?>
+                    </ul>
+                </details>
+            </div>
         <?php endif; ?>
+        <p class="nota">Los números en negritas muestran el total final. Escribe el ajuste en el campo; usa un número negativo para disminuirlo.</p>
 
         <form id="form-paloteo" method="post" action="paloteo_general.php?mes=<?php echo $mes; ?>&amp;anio=<?php echo $anio; ?>">
             <input type="hidden" name="mes" value="<?php echo $mes; ?>">
@@ -1735,8 +1876,7 @@ $guardado = ($_GET["guardado"] ?? "") === "1";
                                                     $ajuste = ajusteGuardado($ajustes, $clave, "dias", $dia);
                                                     ?>
                                                     <td class="dia">
-                                                        <span class="conteo-auto"><?php echo $conteoAuto; ?></span>
-                                                        <span class="mas">+</span>
+                                                        <span class="conteo-auto"><?php echo $conteoAuto + $ajuste; ?></span>
                                                         <input class="ajuste ajuste-dia"
                                                                type="number" step="1" min="<?php echo -$conteoAuto; ?>" max="999999"
                                                                name="ajustes[<?php echo escapar($clave); ?>][dias][<?php echo $dia; ?>]"
@@ -1750,8 +1890,7 @@ $guardado = ($_GET["guardado"] ?? "") === "1";
                                             <?php endfor; ?>
                                             <td class="total total-dosis" data-valor="<?php echo $totalRenglon + $migrantesRenglon; ?>"><?php echo $totalRenglon + $migrantesRenglon; ?></td>
                                             <td class="total total-afromexicano">
-                                                <span class="conteo-auto"><?php echo $automaticos[$clave]["afromexicano"]; ?></span>
-                                                <span class="mas">+</span>
+                                                <span class="conteo-auto"><?php echo $afromexicanoRenglon; ?></span>
                                                 <input class="ajuste ajuste-total ajuste-afromexicano"
                                                        type="number" step="1" min="<?php echo -$automaticos[$clave]["afromexicano"]; ?>" max="999999"
                                                        name="ajustes[<?php echo escapar($clave); ?>][afromexicano]"
@@ -1761,8 +1900,7 @@ $guardado = ($_GET["guardado"] ?? "") === "1";
                                                 <span class="conteo-impresion"><?php echo $afromexicanoRenglon; ?></span>
                                             </td>
                                             <td class="total total-indigenas">
-                                                <span class="conteo-auto"><?php echo $automaticos[$clave]["indigenas"]; ?></span>
-                                                <span class="mas">+</span>
+                                                <span class="conteo-auto"><?php echo $indigenasRenglon; ?></span>
                                                 <input class="ajuste ajuste-total ajuste-indigenas"
                                                        type="number" step="1" min="<?php echo -$automaticos[$clave]["indigenas"]; ?>" max="999999"
                                                        name="ajustes[<?php echo escapar($clave); ?>][indigenas]"
@@ -1772,8 +1910,7 @@ $guardado = ($_GET["guardado"] ?? "") === "1";
                                                 <span class="conteo-impresion"><?php echo $indigenasRenglon; ?></span>
                                             </td>
                                             <td class="total total-migrantes">
-                                                <span class="conteo-auto"><?php echo $automaticos[$clave]["migrantes"]; ?></span>
-                                                <span class="mas">+</span>
+                                                <span class="conteo-auto"><?php echo $migrantesRenglon; ?></span>
                                                 <input class="ajuste ajuste-total ajuste-migrantes"
                                                        type="number" step="1" min="<?php echo -$automaticos[$clave]["migrantes"]; ?>" max="999999"
                                                        name="ajustes[<?php echo escapar($clave); ?>][migrantes]"
@@ -1865,6 +2002,10 @@ $guardado = ($_GET["guardado"] ?? "") === "1";
             if (impresion) {
                 impresion.textContent = String(conteoFinal);
             }
+            var conteoVisible = celda.querySelector(".conteo-auto");
+            if (conteoVisible) {
+                conteoVisible.textContent = String(conteoFinal);
+            }
             var fila = campo.closest("tr");
             var totalNoMigrantes = 0;
             fila.querySelectorAll(".ajuste-dia").forEach(function (ajusteDia) {
@@ -1886,7 +2027,15 @@ $guardado = ($_GET["guardado"] ?? "") === "1";
                 var campoCategoria = fila.querySelector(selectores[0]);
                 var totalCategoria = Number.parseInt(campoCategoria.dataset.auto || "0", 10)
                     + Number.parseInt(campoCategoria.value || "0", 10);
-                fila.querySelector(selectores[1]).textContent = String(totalCategoria);
+                var celdaCategoria = fila.querySelector(selectores[1]);
+                var conteoVisibleCategoria = celdaCategoria.querySelector(".conteo-auto");
+                var impresionCategoria = celdaCategoria.querySelector(".conteo-impresion");
+                if (conteoVisibleCategoria) {
+                    conteoVisibleCategoria.textContent = String(totalCategoria);
+                }
+                if (impresionCategoria) {
+                    impresionCategoria.textContent = String(totalCategoria);
+                }
             });
             actualizarTotales();
         });

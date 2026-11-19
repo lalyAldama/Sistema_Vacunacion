@@ -20,6 +20,17 @@ require_once __DIR__ . "/../config/unidad_contexto.php";
 $contextoUnidad = unidadObtenerContexto($conexion);
 require_once __DIR__ . "/funciones.php";
 $uuidInstalacion = asegurarEsquemaExportacionUnidad($conexion);
+$sqlMapaCorrecciones = "CREATE TABLE IF NOT EXISTS CORRECCION_MAPA_ENTIDAD (
+    tabla VARCHAR(40) NOT NULL,
+    id_central INT NOT NULL,
+    id_local INT NOT NULL,
+    creado_en DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (tabla, id_central),
+    UNIQUE KEY uq_correccion_mapa_entidad_local (tabla, id_local)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4";
+if (!$conexion->query($sqlMapaCorrecciones)) {
+    die("No se pudo preparar el mapa de correcciones: " . $conexion->error);
+}
 
 $contrasenaPaquete = $_POST["contrasena_paquete"] ?? null;
 $confirmarContrasena = $_POST["confirmar_contrasena"] ?? null;
@@ -142,6 +153,40 @@ if (!$conexion->begin_transaction($banderasTransaccion)) {
     die("No fue posible iniciar una lectura consistente para la exportación: " . $conexion->error);
 }
 
+$resultadoMapaCorrecciones = $conexion->query(
+    "SELECT tabla, id_central, id_local FROM CORRECCION_MAPA_ENTIDAD"
+);
+if (!$resultadoMapaCorrecciones) {
+    $conexion->rollback();
+    die("No se pudieron consultar las relaciones de correcciones: " . $conexion->error);
+}
+$correccionMapas = [];
+$idsOrigenCorreccionPorTabla = [];
+$columnasIdCorreccion = [
+    "LOTE" => "id_lote",
+    "MOVIMIENTO_BIOLOGICO" => "id_movimiento",
+    "MOVIMIENTO_JERINGA" => "id_movimiento_jeringa",
+    "PALOTEO_GENERAL" => "id_paloteo",
+    "PALOTEO_INFLUENZA" => "id_paloteo",
+    "PALOTEO_COVID" => "id_paloteo"
+];
+while ($mapa = $resultadoMapaCorrecciones->fetch_assoc()) {
+    $tablaMapa = (string)$mapa["tabla"];
+    if (!isset($columnasIdCorreccion[$tablaMapa])) {
+        continue;
+    }
+    $idCentral = (int)$mapa["id_central"];
+    $idLocal = (int)$mapa["id_local"];
+    $idOrigenCorreccion = "CORRECCION:" . $idCentral;
+    $idsOrigenCorreccionPorTabla[$tablaMapa][$idLocal] = $idOrigenCorreccion;
+    $correccionMapas[] = [
+        "tabla" => $tablaMapa,
+        "id_origen" => $idOrigenCorreccion,
+        "id_destino" => $idCentral
+    ];
+}
+$resultadoMapaCorrecciones->free();
+
 $tablasOpcionales = [
     "APLICACION_VPH_ANONIMA",
     "PALOTEO_GENERAL",
@@ -180,8 +225,48 @@ foreach ($consultasDatos as $tabla => $consulta) {
         die("Error al exportar los datos de " . $tabla . ": " . $conexion->error);
     }
     $datosUnidad[$tabla] = $resultado->fetch_all(MYSQLI_ASSOC);
+    if (isset($columnasIdCorreccion[$tabla], $idsOrigenCorreccionPorTabla[$tabla])) {
+        $columnaId = $columnasIdCorreccion[$tabla];
+        foreach ($datosUnidad[$tabla] as &$filaDatos) {
+            $idLocal = (int)($filaDatos[$columnaId] ?? 0);
+            if (isset($idsOrigenCorreccionPorTabla[$tabla][$idLocal])) {
+                $filaDatos[$columnaId] = $idsOrigenCorreccionPorTabla[$tabla][$idLocal];
+            }
+        }
+        unset($filaDatos);
+    }
+    if (in_array($tabla, ["APLICACION_VACUNA", "APLICACION_VPH_ANONIMA", "MOVIMIENTO_BIOLOGICO"], true)
+        && isset($idsOrigenCorreccionPorTabla["LOTE"])) {
+        foreach ($datosUnidad[$tabla] as &$filaDatos) {
+            $idLoteLocal = (int)($filaDatos["id_lote"] ?? 0);
+            if (isset($idsOrigenCorreccionPorTabla["LOTE"][$idLoteLocal])) {
+                $filaDatos["id_lote"] = $idsOrigenCorreccionPorTabla["LOTE"][$idLoteLocal];
+            }
+        }
+        unset($filaDatos);
+    }
     $resultado->free();
 }
+
+$idsPacientesIncluidos = [];
+foreach ($datosUnidad["PACIENTE"] as $filaPaciente) {
+    $idsPacientesIncluidos[(string)$filaPaciente["id_paciente"]] = true;
+}
+foreach (["PACIENTE_CENSO", "PACIENTE_COMORBILIDAD", "APLICACION_VACUNA"] as $tablaRelacionada) {
+    foreach ($datosUnidad[$tablaRelacionada] as $filaRelacionada) {
+        $idPaciente = (string)($filaRelacionada["id_paciente"] ?? "");
+        if ($idPaciente !== "" && !isset($idsPacientesIncluidos[$idPaciente])) {
+            $conexion->rollback();
+            http_response_code(409);
+            exit(
+                "No se puede generar el paquete: " . $tablaRelacionada
+                . " hace referencia al paciente " . htmlspecialchars($idPaciente, ENT_QUOTES, "UTF-8")
+                . ", que no existe en PACIENTE. Corrige esa relación en la unidad y vuelve a exportar."
+            );
+        }
+    }
+}
+
 if (!$conexion->commit()) {
     $conexion->rollback();
     die("No fue posible finalizar la lectura de la exportación: " . $conexion->error);
@@ -204,6 +289,7 @@ $paquete = [
         "uuid_instalacion" => $uuidInstalacion
     ],
     "registros_incluidos" => $registrosIncluidos,
+    "correccion_mapa" => $correccionMapas,
     "catalogos" => $datosCatalogos,
     "datos_unidad" => $datosUnidad
 ];

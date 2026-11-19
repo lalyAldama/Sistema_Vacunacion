@@ -212,6 +212,37 @@
     box-shadow: var(--sombra);
 }
 
+.consulta-aplicaciones {
+    margin-bottom: 22px;
+}
+
+.consulta-aplicaciones > p {
+    margin: 10px 0;
+    color: var(--texto-secundario);
+}
+
+.filtros-aplicaciones {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: end;
+    gap: 12px;
+    margin: 16px 0;
+}
+
+.filtros-aplicaciones label {
+    flex: 1 1 220px;
+    color: var(--azul-oscuro);
+    font-size: 12px;
+}
+
+.filtros-aplicaciones select {
+    width: 100%;
+}
+
+.filtros-aplicaciones button {
+    min-height: 40px;
+}
+
 .titulo-resultados {
     display: flex;
     align-items: center;

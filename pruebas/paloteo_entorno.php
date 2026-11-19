@@ -40,6 +40,7 @@ class ResultadoSimuladoPaloteo
 
     public function __construct($filas) { $this->filas = $filas; }
     public function fetch_assoc() { return $this->filas[$this->indice++] ?? null; }
+    public function free() {}
 }
 
 class SentenciaSimuladaPaloteo
@@ -65,6 +66,8 @@ class SentenciaSimuladaPaloteo
             $filas = [];
         } elseif (strpos($this->sql, "FROM APLICACION_VPH_ANONIMA") !== false) {
             $filas = $casoPaloteo["anonimas"] ?? [];
+        } elseif (strpos($this->sql, "FROM APLICACION_VACUNA av_historial") !== false) {
+            $filas = $casoPaloteo["historialNeumococo"] ?? [];
         } elseif (strpos($this->sql, "FROM APLICACION_VACUNA av") !== false) {
             $filas = $casoPaloteo["aplicaciones"] ?? [];
         } else {

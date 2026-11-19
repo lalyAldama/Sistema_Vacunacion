@@ -125,8 +125,8 @@ $tokenExportacion = hash_hmac(
         </p>
         
         <p>
-            Se generará un paquete con las correcciones que has realizado en los datos de esta unidad.
-            El paquete incluirá solo los registros que han sido modificados desde la última importación.
+            Se generará un paquete cifrado con los movimientos y paloteos que hayas guardado en los módulos de esta unidad.
+            La unidad receptora aplicará cada cambio una sola vez, aunque se importe el mismo paquete de nuevo.
         </p>
         
         <div class="aviso">
@@ -135,8 +135,8 @@ $tokenExportacion = hash_hmac(
         </div>
         
         <ul>
-            <li>Solo se incluyen registros que han sido modificados.</li>
-            <li>La exportación no incluye nuevos pacientes (solo correcciones).</li>
+            <li>Se incluyen los cambios registrados al guardar desde los módulos compatibles.</li>
+            <li>Los cambios anteriores a esta función no se incluyen automáticamente.</li>
             <li>El archivo se cifrará para proteger los datos de salud.</li>
         </ul>
         

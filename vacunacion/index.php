@@ -37,6 +37,93 @@ if(isset($_GET["buscar"])) {
         $resultados = $stmt->get_result();
     }
 }
+
+$biologicos = $conexion->query(
+    "SELECT id_biologico, nombre_biologico FROM BIOLOGICO ORDER BY nombre_biologico"
+);
+if (!$biologicos) {
+    die("No se pudieron consultar los biológicos: " . $conexion->error);
+}
+$listaBiologicos = $biologicos->fetch_all(MYSQLI_ASSOC);
+$biologicos->free();
+
+$stmtLotes = $conexion->prepare(
+    "SELECT DISTINCT l.id_lote, l.numero_lote, l.fecha_caducidad,
+            pr.id_biologico, pr.nombre_presentacion, b.nombre_biologico
+     FROM APLICACION_VACUNA av
+     INNER JOIN LOTE l ON l.id_lote = av.id_lote
+     INNER JOIN PRESENTACION pr ON pr.id_presentacion = l.id_presentacion
+     INNER JOIN BIOLOGICO b ON b.id_biologico = pr.id_biologico
+     WHERE av.id_unidad = ?
+     ORDER BY b.nombre_biologico, l.numero_lote, l.fecha_caducidad, l.id_lote"
+);
+if (!$stmtLotes) {
+    die("No se pudieron preparar los lotes de aplicaciones: " . $conexion->error);
+}
+$stmtLotes->bind_param("i", $idUnidad);
+if (!$stmtLotes->execute()) {
+    die("No se pudieron consultar los lotes de aplicaciones: " . $stmtLotes->error);
+}
+$listaLotes = $stmtLotes->get_result()->fetch_all(MYSQLI_ASSOC);
+$stmtLotes->close();
+
+$consultarAplicaciones = isset($_GET["consultar_aplicaciones"]);
+$idBiologicoFiltro = filter_var($_GET["biologico"] ?? null, FILTER_VALIDATE_INT);
+$idLoteFiltro = ($_GET["lote"] ?? "") === ""
+    ? null
+    : filter_var($_GET["lote"], FILTER_VALIDATE_INT);
+$errorConsulta = "";
+$aplicacionesFiltradas = [];
+if ($consultarAplicaciones) {
+    $biologicoValido = false;
+    foreach ($listaBiologicos as $biologico) {
+        if ((int)$biologico["id_biologico"] === $idBiologicoFiltro) {
+            $biologicoValido = true;
+            break;
+        }
+    }
+    $loteValido = $idLoteFiltro === null;
+    foreach ($listaLotes as $lote) {
+        if ((int)$lote["id_lote"] === $idLoteFiltro
+            && (int)$lote["id_biologico"] === $idBiologicoFiltro) {
+            $loteValido = true;
+            break;
+        }
+    }
+
+    if (!$biologicoValido || !$loteValido) {
+        http_response_code(400);
+        $errorConsulta = "Selecciona un biológico válido y, si eliges un lote, uno que corresponda a ese biológico.";
+    } else {
+        $sqlAplicacionesFiltro = "SELECT p.nombres, p.ap_pat, p.ap_mat, p.curp,
+                                         av.fecha_aplicacion, d.nombre_dosis,
+                                         l.numero_lote, l.fecha_caducidad, pr.nombre_presentacion
+                                  FROM APLICACION_VACUNA av
+                                  INNER JOIN PACIENTE p ON p.id_paciente = av.id_paciente
+                                  INNER JOIN LOTE l ON l.id_lote = av.id_lote
+                                  INNER JOIN PRESENTACION pr ON pr.id_presentacion = l.id_presentacion
+                                  INNER JOIN ESQUEMA_BIOLOGICO_DOSIS ebd
+                                      ON ebd.id_esquema_biologico_dosis = av.id_esquema_biologico_dosis
+                                  INNER JOIN DOSIS d ON d.id_dosis = ebd.id_dosis
+                                  WHERE av.id_unidad = ? AND pr.id_biologico = ?"
+            . ($idLoteFiltro !== null ? " AND av.id_lote = ?" : "")
+            . " ORDER BY p.ap_pat, p.ap_mat, p.nombres, av.fecha_aplicacion DESC, av.id_aplicacion_vacuna DESC";
+        $stmtAplicacionesFiltro = $conexion->prepare($sqlAplicacionesFiltro);
+        if (!$stmtAplicacionesFiltro) {
+            die("No se pudo preparar la consulta de aplicaciones: " . $conexion->error);
+        }
+        if ($idLoteFiltro === null) {
+            $stmtAplicacionesFiltro->bind_param("ii", $idUnidad, $idBiologicoFiltro);
+        } else {
+            $stmtAplicacionesFiltro->bind_param("iii", $idUnidad, $idBiologicoFiltro, $idLoteFiltro);
+        }
+        if (!$stmtAplicacionesFiltro->execute()) {
+            die("No se pudieron consultar las aplicaciones: " . $stmtAplicacionesFiltro->error);
+        }
+        $aplicacionesFiltradas = $stmtAplicacionesFiltro->get_result()->fetch_all(MYSQLI_ASSOC);
+        $stmtAplicacionesFiltro->close();
+    }
+}
 ?>
 
 <!DOCTYPE html>
@@ -108,6 +195,83 @@ if(isset($_GET["buscar"])) {
                 <p role="status">Modo de consulta: el administrador puede revisar pacientes de esta unidad, pero no registrar aplicaciones.</p>
             <?php endif; ?>
 
+            <section class="resultados-registro consulta-aplicaciones" aria-labelledby="titulo-consulta-aplicaciones">
+                <h2 id="titulo-consulta-aplicaciones">Pacientes vacunados por biológico o lote</h2>
+                <p>Selecciona un biológico y, opcionalmente, un lote para consultar las aplicaciones registradas en esta unidad.</p>
+                <p>Los registros confidenciales de VPH no aparecen porque no contienen datos del paciente.</p>
+                <form method="get" action="index.php" class="filtros-aplicaciones">
+                    <input type="hidden" name="consultar_aplicaciones" value="1">
+                    <label for="biologico">Biológico aplicado
+                        <select name="biologico" id="biologico" required>
+                            <option value="">Selecciona un biológico</option>
+                            <?php foreach ($listaBiologicos as $biologico): ?>
+                                <option value="<?php echo (int)$biologico["id_biologico"]; ?>"
+                                    <?php echo (int)$biologico["id_biologico"] === $idBiologicoFiltro ? "selected" : ""; ?>>
+                                    <?php echo htmlspecialchars($biologico["nombre_biologico"], ENT_QUOTES, "UTF-8"); ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </label>
+                    <label for="lote">Lote (opcional)
+                        <select name="lote" id="lote">
+                            <option value="">Todos los lotes</option>
+                            <?php foreach ($listaLotes as $lote): ?>
+                                <option value="<?php echo (int)$lote["id_lote"]; ?>"
+                                    data-biologico="<?php echo (int)$lote["id_biologico"]; ?>"
+                                    <?php echo (int)$lote["id_lote"] === $idLoteFiltro ? "selected" : ""; ?>>
+                                    <?php echo htmlspecialchars(
+                                        $lote["nombre_biologico"] . " — " . $lote["numero_lote"]
+                                        . " (" . $lote["nombre_presentacion"] . ", cad. " . $lote["fecha_caducidad"]
+                                        . ", ID " . $lote["id_lote"] . ")",
+                                        ENT_QUOTES,
+                                        "UTF-8"
+                                    ); ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </label>
+                    <button type="submit">Consultar aplicaciones</button>
+                </form>
+
+                <?php if ($errorConsulta !== ""): ?>
+                    <p class="sin-resultados" role="alert"><?php echo htmlspecialchars($errorConsulta, ENT_QUOTES, "UTF-8"); ?></p>
+                <?php elseif ($consultarAplicaciones): ?>
+                    <?php if ($aplicacionesFiltradas === []): ?>
+                        <p class="sin-resultados">No se encontraron aplicaciones para los filtros seleccionados.</p>
+                    <?php else: ?>
+                        <p>Aplicaciones encontradas: <?php echo count($aplicacionesFiltradas); ?>. Una persona puede aparecer más de una vez si recibió varias dosis.</p>
+                        <div class="tabla-registro-contenedor">
+                            <table class="tabla-registro">
+                                <thead>
+                                    <tr>
+                                        <th>Paciente</th>
+                                        <th>CURP</th>
+                                        <th>Fecha de aplicación</th>
+                                        <th>Dosis</th>
+                                        <th>Lote</th>
+                                        <th>Presentación</th>
+                                        <th>Caducidad del lote</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php foreach ($aplicacionesFiltradas as $aplicacion): ?>
+                                        <tr>
+                                            <td><?php echo htmlspecialchars(trim($aplicacion["ap_pat"] . " " . $aplicacion["ap_mat"] . " " . $aplicacion["nombres"]), ENT_QUOTES, "UTF-8"); ?></td>
+                                            <td><?php echo htmlspecialchars($aplicacion["curp"] ?? "", ENT_QUOTES, "UTF-8"); ?></td>
+                                            <td><?php echo htmlspecialchars($aplicacion["fecha_aplicacion"], ENT_QUOTES, "UTF-8"); ?></td>
+                                            <td><?php echo htmlspecialchars($aplicacion["nombre_dosis"], ENT_QUOTES, "UTF-8"); ?></td>
+                                            <td><?php echo htmlspecialchars($aplicacion["numero_lote"], ENT_QUOTES, "UTF-8"); ?></td>
+                                            <td><?php echo htmlspecialchars($aplicacion["nombre_presentacion"], ENT_QUOTES, "UTF-8"); ?></td>
+                                            <td><?php echo htmlspecialchars($aplicacion["fecha_caducidad"], ENT_QUOTES, "UTF-8"); ?></td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                    <?php endif; ?>
+                <?php endif; ?>
+            </section>
+
             <?php if ($resultados !== null): ?>
                 <section class="resultados-registro" aria-labelledby="titulo-resultados">
                     <div class="titulo-resultados">
@@ -159,5 +323,20 @@ if(isset($_GET["buscar"])) {
                 </section>
             <?php endif; ?>
         </main>
+        <script>
+            const biologico = document.getElementById("biologico");
+            const lote = document.getElementById("lote");
+            function filtrarLotes() {
+                Array.from(lote.options).forEach(function (opcion) {
+                    if (opcion.value === "") return;
+                    const corresponde = opcion.dataset.biologico === biologico.value;
+                    opcion.hidden = !corresponde;
+                    opcion.disabled = !corresponde;
+                    if (!corresponde && opcion.selected) lote.value = "";
+                });
+            }
+            biologico.addEventListener("change", filtrarLotes);
+            filtrarLotes();
+        </script>
     </body>
 </html>

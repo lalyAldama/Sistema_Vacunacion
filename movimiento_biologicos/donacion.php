@@ -8,9 +8,11 @@ if (!isset($_SESSION["id_usuario"])) {
 
 require_once "../config/conexion.php";
 require_once __DIR__ . "/../config/unidad_contexto.php";
+require_once __DIR__ . "/../exportar_importar/correcciones_funciones.php";
 $contextoUnidad = unidadObtenerContexto($conexion);
 unidadExigirPermisoEscritura();
 $idUnidad = $contextoUnidad["id_unidad"];
+correccionesAsegurarRegistroCentral($conexion);
 require_once __DIR__ . "/../vacunacion/funciones_vph.php";
 asegurarEsquemaVph($conexion);
 
@@ -80,7 +82,10 @@ function obtenerExistencia($conexion, $idLote, $idUnidad) {
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
     $idLote = filter_input(INPUT_POST, "id_lote", FILTER_VALIDATE_INT);
     $idReceptora = filter_input(INPUT_POST, "id_unidad_receptora", FILTER_VALIDATE_INT);
-    $frascos = filter_input(INPUT_POST, "cantidad_frascos", FILTER_VALIDATE_INT);
+    $frascosTexto = trim((string)($_POST["cantidad_frascos"] ?? ""));
+    $frascos = ctype_digit($frascosTexto)
+        ? filter_var($frascosTexto, FILTER_VALIDATE_INT)
+        : false;
     $fecha = $_POST["fecha_movimiento"] ?? "";
     $observaciones = trim($_POST["observaciones"] ?? "");
 
@@ -140,7 +145,54 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 $observaciones
             );
             $stmt->execute();
+            $idMovimientoCentral = (int)$conexion->insert_id;
             $stmt->close();
+
+            $datosCorreccionMovimiento = [
+                "id_movimiento_central" => $idMovimientoCentral,
+                "id_unidad_movimiento" => (int)$idUnidad,
+                "id_lote_central" => (int)$idLote,
+                "tipo_movimiento" => $tipo,
+                "cantidad_frascos" => (int)$frascos,
+                "cantidad_dosis" => (int)$dosis,
+                "fecha_movimiento" => (string)$fecha,
+                "necesidad" => (int)$necesidad,
+                "id_unidad_receptora" => (int)$idReceptora,
+                "observaciones" => (string)$observaciones
+            ];
+            correccionesRegistrarCambio(
+                $conexion,
+                (int)$idUnidad,
+                "MOVIMIENTO_BIOLOGICO",
+                $datosCorreccionMovimiento
+            );
+
+            $stmtDatosLote = $conexion->prepare(
+                "SELECT id_presentacion, numero_lote, fecha_caducidad
+                 FROM LOTE WHERE id_lote = ? LIMIT 1"
+            );
+            $stmtDatosLote->bind_param("i", $idLote);
+            if (!$stmtDatosLote->execute()) {
+                throw new RuntimeException("No se pudieron consultar los datos del lote donado.");
+            }
+            $datosLote = $stmtDatosLote->get_result()->fetch_assoc();
+            $stmtDatosLote->close();
+            if (!$datosLote) {
+                throw new RuntimeException("No se encontraron los datos del lote donado.");
+            }
+
+            correccionesRegistrarCambio($conexion, (int)$idReceptora, "LOTE", [
+                "id_lote_central" => (int)$idLote,
+                "id_presentacion" => (int)$datosLote["id_presentacion"],
+                "numero_lote" => (string)$datosLote["numero_lote"],
+                "fecha_caducidad" => (string)$datosLote["fecha_caducidad"]
+            ]);
+            correccionesRegistrarCambio(
+                $conexion,
+                (int)$idReceptora,
+                "MOVIMIENTO_BIOLOGICO",
+                $datosCorreccionMovimiento
+            );
 
             $conexion->commit();
 
@@ -224,7 +276,7 @@ if (!$lotes) {
 
         <label for="cantidad_frascos"><strong>CANTIDAD DE FRASCOS:</strong></label><br>
         <input type="number" name="cantidad_frascos" id="cantidad_frascos"
-               min="1" step="1" required><br><br>
+               min="1" step="1" inputmode="numeric" required><br><br>
 
         <label for="fecha_movimiento"><strong>FECHA:</strong></label><br>
         <input type="date" name="fecha_movimiento" id="fecha_movimiento"

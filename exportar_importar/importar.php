@@ -12,7 +12,9 @@ if (($_SESSION["nombre_rol"] ?? "") !== "Supervisor") {
 
 require_once __DIR__ . "/../config/conexion.php";
 require_once __DIR__ . "/../config/unidad_contexto.php";
+require_once __DIR__ . "/../vacunacion/funciones_vph.php";
 require_once __DIR__ . "/importar_funciones.php";
+asegurarClasificacionDpt($conexion);
 
 $contextoUnidad = unidadObtenerContexto($conexion);
 $idUsuarioCentral = (int)$_SESSION["id_usuario"];
@@ -153,14 +155,8 @@ $escapar = static function ($valor): string {
     </p>
     <p>
         Selecciona el paquete cifrado que generó la unidad y escribe la contraseña
-        que te compartieron. La información se agregará al destino seleccionado.
+        que te compartieron.
     </p>
-    <div class="aviso">
-        El paquete contiene datos de salud. La importación es transaccional:
-        si algún registro no puede integrarse, no se conserva ningún cambio parcial.
-        Puedes volver a importar el mismo paquete; sus registros se reconocen por
-        la identidad de la instalación y no se duplican.
-    </div>
 
     <?php if ($mensajeError !== ""): ?>
         <p class="error" role="alert"><?php echo $escapar($mensajeError); ?></p>

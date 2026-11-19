@@ -21,6 +21,7 @@ asegurarEsquemaVph($conexion);
 asegurarClasificacionHepatitisB($conexion);
 asegurarClasificacionSr($conexion);
 asegurarClasificacionVaricelaHepatitisA($conexion);
+asegurarClasificacionDpt($conexion);
 
 // =========================================================
 // VERIFICAR PACIENTE
@@ -289,7 +290,8 @@ $idHexavalente = buscarIdBiologicoPorAlias($biologicosArray, [
     "HEXAVALENTE DPTA HB VPI HIB",
     "HEXAVALENTE ACELULAR"
 ]);
-$idDpt = buscarIdBiologicoPorAlias($biologicosArray, ["DPT"]);
+$idDpt = buscarIdBiologicoPorAlias($biologicosArray, ["DPT"])
+    ?? buscarIdBiologicoPorAlias($biologicosArray, ["123 DPT"]);
 $idTdpa = buscarIdBiologicoPorAlias($biologicosArray, ["TDPA"]);
 $idTd = buscarIdBiologicoPorAlias($biologicosArray, ["TD"]);
 $idVph = buscarIdBiologicoPorAlias($biologicosArray, ["VPH"]);
@@ -360,6 +362,15 @@ if($_SERVER["REQUEST_METHOD"] == "POST") {
     $clasificacionVaricelaHepatitisA = is_string($_POST["clasificacion_varicela_hepatitis_a"] ?? null)
         ? $_POST["clasificacion_varicela_hepatitis_a"]
         : "";
+    $rezagoVaricela = $_POST["rezago_varicela"] ?? "0";
+    if (!is_string($rezagoVaricela) || !in_array($rezagoVaricela, ["0", "1"], true)) {
+        die("La opción de rezago de varicela no es válida.");
+    }
+    $sinAntecedenteDpt = $_POST["sin_antecedente_dpt"] ?? "0";
+    if (!is_string($sinAntecedenteDpt) || !in_array($sinAntecedenteDpt, ["0", "1"], true)) {
+        die("La opción de antecedente vacunal de DPT no es válida.");
+    }
+    $sinAntecedenteDptGuardado = null;
     $dosis_cero = $_POST["dosis_cero"] ?? "";
     $id_biologico_indicado = $_POST["id_biologico_indicado"] ?? "";
     $observaciones = is_string($_POST["observaciones"] ?? null)
@@ -431,18 +442,20 @@ if($_SERVER["REQUEST_METHOD"] == "POST") {
     } else {
         $clasificacionSr = null;
     }
-    if (
-        ($idVaricela !== null && (int)$id_biologico === $idVaricela)
-        || ($idHepatitisA !== null && (int)$id_biologico === $idHepatitisA)
-    ) {
-        $categoriasAplicacionPorEdad = (int)$id_biologico === $idVaricela
-            ? ["rutina", "rezago"]
-            : ["rutina", "rezago", "riesgo"];
-        if (!in_array($clasificacionVaricelaHepatitisA, $categoriasAplicacionPorEdad, true)) {
-            die("Selecciona si la aplicación es de esquema regular, rezago o población en riesgo.");
+    if ($idVaricela !== null && (int)$id_biologico === $idVaricela) {
+        $clasificacionVaricelaHepatitisA = $rezagoVaricela === "1" ? "rezago" : "rutina";
+    } elseif ($idHepatitisA !== null && (int)$id_biologico === $idHepatitisA) {
+        if ($clasificacionVaricelaHepatitisA === "") {
+            $clasificacionVaricelaHepatitisA = "rutina";
+        }
+        if (!in_array($clasificacionVaricelaHepatitisA, ["rutina", "rezago", "riesgo"], true)) {
+            die("Selecciona una clasificación válida para Hepatitis A.");
         }
     } else {
         $clasificacionVaricelaHepatitisA = null;
+    }
+    if ($rezagoVaricela === "1" && ($idVaricela === null || (int)$id_biologico !== $idVaricela)) {
+        die("La opción de rezago de varicela solo aplica a esa vacuna.");
     }
 
     $idBiologicoLote = (int)$id_biologico;
@@ -580,8 +593,7 @@ if($_SERVER["REQUEST_METHOD"] == "POST") {
             "rezagados",
             "violencia_9_14",
             "violencia_15_19",
-            "mujeres_vih",
-            "hombres_vih"
+            "personas_vih"
         ], true)
     ) {
         $nacimientoVph = DateTimeImmutable::createFromFormat(
@@ -607,8 +619,7 @@ if($_SERVER["REQUEST_METHOD"] == "POST") {
             "rezagados" => [12, 16],
             "violencia_9_14" => [9, 14],
             "violencia_15_19" => [15, 19],
-            "mujeres_vih" => [11, 49],
-            "hombres_vih" => [11, 49]
+            "personas_vih" => [11, 49]
         ];
         [$edadMinimaVph, $edadMaximaVph] = $rangosEdadVph[$clasificacionVph];
         if ($edadVph < $edadMinimaVph || $edadVph > $edadMaximaVph) {
@@ -642,10 +653,19 @@ if($_SERVER["REQUEST_METHOD"] == "POST") {
         $diferenciaEdadAplicacion = $nacimientoEdadAplicacion->diff($fechaEdadAplicacion);
         $edadMesesAplicacion = $diferenciaEdadAplicacion->y * 12 + $diferenciaEdadAplicacion->m;
         if ((int)$id_biologico === $idVaricela) {
+            if ($edadMesesAplicacion >= 24 && $edadMesesAplicacion < 60 && $rezagoVaricela !== "1") {
+                die("Marca la casilla de rezago para registrar varicela entre los 2 y 4 años.");
+            }
             $clasificacionValidaPorEdad = $clasificacionVaricelaHepatitisA === "rutina"
                 ? $edadMesesAplicacion >= 12 && $edadMesesAplicacion < 24
                 : $edadMesesAplicacion >= 24 && $edadMesesAplicacion < 60;
         } else {
+            if (
+                $clasificacionVaricelaHepatitisA === "rutina"
+                && $edadMesesAplicacion !== 18
+            ) {
+                die("La clasificación automática de Hepatitis A es para los 18 meses; selecciona rezago o población en riesgo si corresponde.");
+            }
             $clasificacionValidaPorEdad = $clasificacionVaricelaHepatitisA === "rutina"
                 ? $edadMesesAplicacion === 18
                 : $edadMesesAplicacion >= 24 && $edadMesesAplicacion < 60;
@@ -653,6 +673,37 @@ if($_SERVER["REQUEST_METHOD"] == "POST") {
         if (!$clasificacionValidaPorEdad) {
             die("La edad del paciente no corresponde a la clasificación seleccionada para la vacuna.");
         }
+    }
+    if ($sinAntecedenteDpt === "1") {
+        if (
+            $idDpt === null
+            || (int)$id_biologico !== $idDpt
+            || !str_contains(
+                normalizarNombreBiologico($dosisValidada["nombre_dosis"]),
+                "UNICA"
+            )
+        ) {
+            die("La opción de DPT sin antecedente solo aplica a una dosis única de DPT.");
+        }
+        $nacimientoDpt = DateTimeImmutable::createFromFormat(
+            "!Y-m-d",
+            (string)$paciente["fecha_nacimiento"]
+        );
+        $aplicacionDpt = DateTimeImmutable::createFromFormat("!Y-m-d", (string)$fecha_aplicacion);
+        if (
+            !$nacimientoDpt
+            || !$aplicacionDpt
+            || $nacimientoDpt->format("Y-m-d") !== $paciente["fecha_nacimiento"]
+            || $aplicacionDpt->format("Y-m-d") !== $fecha_aplicacion
+            || $nacimientoDpt > $aplicacionDpt
+        ) {
+            die("La fecha de nacimiento o de aplicación no es válida para clasificar DPT.");
+        }
+        $edadDpt = $nacimientoDpt->diff($aplicacionDpt)->y;
+        if ($edadDpt < 5 || $edadDpt > 6) {
+            die("La opción de DPT sin antecedente solo aplica entre los 5 y 6 años.");
+        }
+        $sinAntecedenteDptGuardado = 1;
     }
 
 
@@ -768,11 +819,12 @@ if($_SERVER["REQUEST_METHOD"] == "POST") {
                         clasificacion_hepatitis_b,
                         clasificacion_sr,
                         clasificacion_varicela_hepatitis_a,
+                        sin_antecedente_dpt,
                         dosis_cero,
                         observaciones,
                         id_usuario
                     )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
     $stmtInsertar = $conexion->prepare($sqlInsertar);
 
@@ -781,7 +833,7 @@ if($_SERVER["REQUEST_METHOD"] == "POST") {
     }
 
     $stmtInsertar->bind_param(
-        "siiiisssssisi",
+        "siiiisssssiisi",
         $id_paciente,
         $id_esquema_biologico_dosis,
         $id_lote,
@@ -792,6 +844,7 @@ if($_SERVER["REQUEST_METHOD"] == "POST") {
         $clasificacionHepatitisB,
         $clasificacionSr,
         $clasificacionVaricelaHepatitisA,
+        $sinAntecedenteDptGuardado,
         $dosis_cero,
         $observaciones,
         $id_usuario
@@ -970,7 +1023,21 @@ if($_SERVER["REQUEST_METHOD"] == "POST") {
                 <select name="clasificacion_varicela_hepatitis_a" id="clasificacion-varicela-hepatitis-a" disabled>
                     <option value="">SELECCIONE</option>
                 </select>
-                <p>Selecciona si corresponde al esquema regular, a un rezago o a población en riesgo. La edad se validará con el expediente.</p>
+                <p>A los 18 meses se clasifica automáticamente. En otros casos, selecciona rezago o población en riesgo si corresponde.</p>
+            </div>
+
+            <div id="seccion-rezago-varicela" class="campo-vacuna bloque-condicional" hidden>
+                <label for="rezago-varicela">
+                    <input type="checkbox" name="rezago_varicela" id="rezago-varicela" value="1" disabled>
+                    Rezago de varicela (2 a 4 años)
+                </label>
+            </div>
+
+            <div id="seccion-clasificacion-dpt" class="campo-vacuna bloque-condicional" hidden>
+                <label for="sin-antecedente-dpt">
+                    <input type="checkbox" name="sin_antecedente_dpt" id="sin-antecedente-dpt" value="1" disabled>
+                    Sin antecedente vacunal de DPT
+                </label>
             </div>
 
             <div class="campo-vacuna campo-vacuna--ancho">
@@ -1007,6 +1074,9 @@ if($_SERVER["REQUEST_METHOD"] == "POST") {
     ?>;
     const idBiologicoHepatitisA = <?php
         echo json_encode($idHepatitisA, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
+    ?>;
+    const idBiologicoDpt = <?php
+        echo json_encode($idDpt, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
     ?>;
     const personalSaludPaciente = <?php
         echo json_encode((int)$paciente["personal_salud"] === 1, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
@@ -1054,7 +1124,7 @@ if($_SERVER["REQUEST_METHOD"] == "POST") {
     ?>;
 </script>
 
-<script src="js/vacunacion.js"></script>
+<script src="js/vacunacion.js?v=<?php echo (int)filemtime(__DIR__ . "/js/vacunacion.js"); ?>"></script>
 
 
 

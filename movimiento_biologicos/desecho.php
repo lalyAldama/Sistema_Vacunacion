@@ -9,9 +9,11 @@ if(!isset($_SESSION["id_usuario"])) {
 
 require_once "../config/conexion.php";
 require_once __DIR__ . "/../config/unidad_contexto.php";
+require_once __DIR__ . "/../exportar_importar/correcciones_funciones.php";
 $contextoUnidad = unidadObtenerContexto($conexion);
 unidadExigirPermisoEscritura();
 $idUnidad = $contextoUnidad["id_unidad"];
+correccionesAsegurarRegistroCentral($conexion);
 
 
 // =========================================================
@@ -53,7 +55,10 @@ if($_SERVER["REQUEST_METHOD"] == "POST") {
     unidadExigirPermisoEscritura();
 
     $id_lote = $_POST["id_lote"] ?? "";
-    $cantidad_dosis = $_POST["cantidad_dosis"] ?? "";
+    $cantidadDosisTexto = trim((string)($_POST["cantidad_dosis"] ?? ""));
+    $cantidad_dosis = ctype_digit($cantidadDosisTexto)
+        ? filter_var($cantidadDosisTexto, FILTER_VALIDATE_INT)
+        : false;
     $fecha_movimiento = $_POST["fecha_movimiento"] ?? "";
     $observaciones = trim($_POST["observaciones"] ?? "");
 
@@ -63,7 +68,7 @@ if($_SERVER["REQUEST_METHOD"] == "POST") {
 
     if(
         empty($id_lote) ||
-        empty($cantidad_dosis) ||
+        $cantidad_dosis === false ||
         empty($fecha_movimiento)
     ) {
 
@@ -72,7 +77,7 @@ if($_SERVER["REQUEST_METHOD"] == "POST") {
     }
 
 
-    if($cantidad_dosis <= 0) {
+    if($cantidad_dosis < 1) {
 
         die("La cantidad de dosis debe ser mayor a cero.");
 
@@ -157,7 +162,9 @@ if($_SERVER["REQUEST_METHOD"] == "POST") {
     );
 
 
+    $conexion->begin_transaction();
     if(!$stmtMovimiento->execute()) {
+        $conexion->rollback();
 
         die(
             "Error al registrar desecho: "
@@ -165,7 +172,24 @@ if($_SERVER["REQUEST_METHOD"] == "POST") {
         );
 
     }
+    $idMovimientoCentral = (int)$conexion->insert_id;
 
+    correccionesRegistrarCambio($conexion, (int)$idUnidad, "MOVIMIENTO_BIOLOGICO", [
+        "id_movimiento_central" => $idMovimientoCentral,
+        "id_unidad_movimiento" => (int)$idUnidad,
+        "id_lote_central" => (int)$id_lote,
+        "tipo_movimiento" => $tipo_movimiento,
+        "cantidad_frascos" => (int)$cantidad_frascos,
+        "cantidad_dosis" => (int)$cantidad_dosis,
+        "fecha_movimiento" => (string)$fecha_movimiento,
+        "necesidad" => (int)$necesidad,
+        "id_unidad_receptora" => null,
+        "observaciones" => (string)$observaciones
+    ]);
+    if (!$conexion->commit()) {
+        $conexion->rollback();
+        die("No se pudo confirmar el registro del movimiento.");
+    }
 
     $stmtMovimiento->close();
 
@@ -276,6 +300,7 @@ if($_SERVER["REQUEST_METHOD"] == "POST") {
         name="cantidad_dosis"
         min="1"
         step="1"
+        inputmode="numeric"
         required
     >
 

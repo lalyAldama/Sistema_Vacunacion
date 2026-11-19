@@ -33,6 +33,64 @@ function importacionConsultar(mysqli $conexion, string $sql, string $types = "",
     return $stmt;
 }
 
+function importacionDescifrarSobre(
+    array $sobre,
+    string $contrasena,
+    string $ad = "sistema-vacunacion-unidad:v1",
+    int $maxDescomprimido = 200 * 1024 * 1024
+): array {
+    if (
+        ($sobre["formato"] ?? null) !== "sistema-vacunacion-cifrado"
+        || ($sobre["version"] ?? null) !== 1
+        || ($sobre["cifrado"] ?? null) !== "AES-256-GCM"
+        || ($sobre["derivacion"] ?? null) !== "PBKDF2-HMAC-SHA256"
+        || ($sobre["iteraciones"] ?? null) !== 310000
+    ) {
+        importacionLanzarError("El archivo no tiene un formato de paquete compatible.");
+    }
+
+    $sal = base64_decode((string)($sobre["sal"] ?? ""), true);
+    $iv = base64_decode((string)($sobre["iv"] ?? ""), true);
+    $tag = base64_decode((string)($sobre["tag"] ?? ""), true);
+    $datos = base64_decode((string)($sobre["datos"] ?? ""), true);
+    if (
+        $sal === false || strlen($sal) !== 16
+        || $iv === false || strlen($iv) !== 12
+        || $tag === false || strlen($tag) !== 16
+        || $datos === false || $datos === ""
+    ) {
+        importacionLanzarError("El paquete está incompleto o dañado.");
+    }
+
+    $clave = hash_pbkdf2("sha256", $contrasena, $sal, 310000, 32, true);
+    $comprimido = openssl_decrypt(
+        $datos,
+        "aes-256-gcm",
+        $clave,
+        OPENSSL_RAW_DATA,
+        $iv,
+        $tag,
+        $ad
+    );
+    if ($comprimido === false) {
+        importacionLanzarError("No se pudo descifrar el paquete. Verifica la contraseña.");
+    }
+
+    $json = gzdecode($comprimido, $maxDescomprimido);
+    if ($json === false) {
+        importacionLanzarError("El contenido comprimido del paquete no es válido.");
+    }
+    try {
+        $paquete = json_decode($json, true, 512, JSON_THROW_ON_ERROR);
+    } catch (JsonException $error) {
+        importacionLanzarError("El contenido del paquete no es un JSON válido.");
+    }
+    if (!is_array($paquete)) {
+        importacionLanzarError("El contenido del paquete tiene una estructura no válida.");
+    }
+    return $paquete;
+}
+
 function importacionValidarPaquete(array $sobre, string $contrasena): array
 {
     if (
@@ -131,6 +189,27 @@ function importacionValidarPaquete(array $sobre, string $contrasena): array
     foreach ($tablasCatalogo as $tabla) {
         if (!array_key_exists($tabla, $paquete["catalogos"])) {
             importacionLanzarError("El paquete no incluye el catálogo " . $tabla . ".");
+        }
+    }
+
+    $paquete["correccion_mapa"] = $paquete["correccion_mapa"] ?? [];
+    if (!is_array($paquete["correccion_mapa"])) {
+        importacionLanzarError("El mapa de correcciones del paquete no es válido.");
+    }
+    $tablasConCorreccionMapeable = [
+        "LOTE", "MOVIMIENTO_BIOLOGICO", "MOVIMIENTO_JERINGA",
+        "PALOTEO_GENERAL", "PALOTEO_INFLUENZA", "PALOTEO_COVID"
+    ];
+    foreach ($paquete["correccion_mapa"] as $mapa) {
+        if (
+            !is_array($mapa)
+            || !in_array($mapa["tabla"] ?? null, $tablasConCorreccionMapeable, true)
+            || !is_string($mapa["id_origen"] ?? null)
+            || !preg_match('/^CORRECCION:[1-9][0-9]*$/', $mapa["id_origen"])
+            || filter_var($mapa["id_destino"] ?? null, FILTER_VALIDATE_INT) === false
+            || (int)$mapa["id_destino"] < 1
+        ) {
+            importacionLanzarError("El paquete contiene una relación de corrección no válida.");
         }
     }
 
@@ -486,6 +565,16 @@ function importacionEjecutar(
     $resumen = [];
     importacionAsegurarCatalogosGlobales($conexion, $paquete);
 
+    foreach (($paquete["correccion_mapa"] ?? []) as $mapaCorreccion) {
+        importacionGuardarMapa(
+            $conexion,
+            $contexto,
+            (string)$mapaCorreccion["tabla"],
+            (string)$mapaCorreccion["id_origen"],
+            (string)(int)$mapaCorreccion["id_destino"]
+        );
+    }
+
     foreach ($paquete["datos_unidad"]["TUTOR"] as $fila) {
         $idOrigen = (string)($fila["id_tutor"] ?? "");
         if ($idOrigen === "") {
@@ -660,7 +749,8 @@ function importacionEjecutar(
             "id_paciente", "id_esquema_biologico_dosis", "id_lote", "id_unidad",
             "id_biologico_indicado", "fecha_aplicacion", "clasificacion_vph",
             "clasificacion_hepatitis_b", "clasificacion_sr",
-            "clasificacion_varicela_hepatitis_a", "dosis_cero", "observaciones"
+            "clasificacion_varicela_hepatitis_a", "sin_antecedente_dpt",
+            "dosis_cero", "observaciones"
         ];
         $valores = [
             $idPaciente,
@@ -673,6 +763,7 @@ function importacionEjecutar(
             $fila["clasificacion_hepatitis_b"] ?? null,
             $fila["clasificacion_sr"] ?? null,
             $fila["clasificacion_varicela_hepatitis_a"] ?? null,
+            $fila["sin_antecedente_dpt"] ?? null,
             $fila["dosis_cero"] ?? null,
             $fila["observaciones"] ?? null
         ];

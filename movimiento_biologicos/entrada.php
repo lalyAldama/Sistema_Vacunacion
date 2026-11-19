@@ -6,9 +6,11 @@ if (!isset($_SESSION["id_usuario"])) {
 }
 require_once "../config/conexion.php";
 require_once __DIR__ . "/../config/unidad_contexto.php";
+require_once __DIR__ . "/../exportar_importar/correcciones_funciones.php";
 $contextoUnidad = unidadObtenerContexto($conexion);
 unidadExigirPermisoEscritura();
 $idUnidad = $contextoUnidad["id_unidad"];
+correccionesAsegurarRegistroCentral($conexion);
 
 //Biologicos y presentaciones
 
@@ -33,7 +35,13 @@ if($_SERVER["REQUEST_METHOD"] == "POST") {
     $id_presentacion = $_POST['id_presentacion'];
     $numero_lote = $_POST['numero_lote'];
     $fecha_caducidad = $_POST['fecha_caducidad'];
-    $cantidad_frascos = $_POST['cantidad_frascos'];
+    $cantidadFrascosTexto = trim((string)($_POST["cantidad_frascos"] ?? ""));
+    $cantidad_frascos = ctype_digit($cantidadFrascosTexto)
+        ? filter_var($cantidadFrascosTexto, FILTER_VALIDATE_INT)
+        : false;
+    if ($cantidad_frascos === false || $cantidad_frascos < 1) {
+        die("La cantidad de frascos debe ser un número entero mayor a cero.");
+    }
     $fecha_movimiento = $_POST['fecha_movimiento'];
     $necesidad = 0;
     $id_unidad = $idUnidad;
@@ -75,6 +83,12 @@ if($_SERVER["REQUEST_METHOD"] == "POST") {
         $stmt_lote->execute();
 
         $id_lote= $conexion ->insert_id;
+        correccionesRegistrarCambio($conexion, (int)$idUnidad, "LOTE", [
+            "id_lote_central" => (int)$id_lote,
+            "id_presentacion" => (int)$id_presentacion,
+            "numero_lote" => (string)$numero_lote,
+            "fecha_caducidad" => (string)$fecha_caducidad
+        ]);
 
         $sql_movimiento = "INSERT INTO MOVIMIENTO_BIOLOGICO(
                     id_unidad, id_lote, tipo_movimiento, cantidad_frascos, cantidad_dosis,
@@ -93,7 +107,22 @@ if($_SERVER["REQUEST_METHOD"] == "POST") {
             $observaciones
         );
 
-        $stmt_movimiento->execute();
+        if (!$stmt_movimiento->execute()) {
+            throw new RuntimeException("No se pudo guardar el movimiento: " . $stmt_movimiento->error);
+        }
+        $idMovimientoCentral = (int)$conexion->insert_id;
+        correccionesRegistrarCambio($conexion, (int)$idUnidad, "MOVIMIENTO_BIOLOGICO", [
+            "id_movimiento_central" => $idMovimientoCentral,
+            "id_unidad_movimiento" => (int)$idUnidad,
+            "id_lote_central" => (int)$id_lote,
+            "tipo_movimiento" => "Entrada",
+            "cantidad_frascos" => (int)$cantidad_frascos,
+            "cantidad_dosis" => (int)$cantidad_dosis,
+            "fecha_movimiento" => (string)$fecha_movimiento,
+            "necesidad" => (int)$necesidad,
+            "id_unidad_receptora" => null,
+            "observaciones" => (string)$observaciones
+        ]);
 
         $conexion->commit();
 
@@ -157,7 +186,7 @@ if($_SERVER["REQUEST_METHOD"] == "POST") {
             <br><br>
 
             <label>CANTIDAD DE FRASCOS </label>
-            <input type="text" name="cantidad_frascos" min="1" required>
+            <input type="number" name="cantidad_frascos" min="1" step="1" inputmode="numeric" required>
             <br><br>
 
             <label>FECHA DE ENTRADA</label>

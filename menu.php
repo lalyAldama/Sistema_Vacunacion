@@ -265,6 +265,13 @@ if ($esRolCoordinador) {
                     </span>
                     <span class="menu-flecha">›</span>
                 </a>
+                <a class="menu-tarjeta turquesa" href="bitacora/index.php">
+                    <span class="menu-icono"><img src="iconos_menu/12_bitacora.png" alt=""></span>
+                    <span class="menu-texto">
+                        <strong>Bitacora de aplicaciones</strong>
+                    </span>
+                    <span class="menu-flecha">›</span>
+                </a>
 
                 <?php if ($rol === "Personal de unidad") { ?>
                 <a class="menu-tarjeta turquesa" href="exportar_importar/index.php">
@@ -282,13 +289,7 @@ if ($esRolCoordinador) {
                     </span>
                     <span class="menu-flecha">›</span>
                 </a>
-                <a class="menu-tarjeta turquesa" href="bitacora/index.php">
-                    <span class="menu-icono"><img src="iconos_menu/12_bitacora.png" alt=""></span>
-                    <span class="menu-texto">
-                        <strong>Bitacora de aplicaciones</strong>
-                    </span>
-                    <span class="menu-flecha">›</span>
-                </a>
+
                 <?php } elseif ($rol === "Supervisor") { ?>
                 <a class="menu-tarjeta verde" href="exportar_importar/index.php">
                     <span class="menu-icono"><img src="iconos_menu/11_actualizar_informacion.png" alt=""></span>

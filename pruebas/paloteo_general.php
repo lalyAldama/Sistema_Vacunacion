@@ -6,12 +6,14 @@ if (PHP_SAPI !== "cli" || !function_exists("mb_strtolower")) {
 }
 
 $casos = [];
-function caso($nombre, $renglon, $biologico, $dosis, $meses, $cambios = [])
+function caso($nombre, $renglon, $biologico, $dosis, $meses, $cambios = [], $historialNeumo = [])
 {
     global $casos;
     $fecha = new DateTimeImmutable("2024-05-15");
     $aplicacion = [
         "id_aplicacion_vacuna" => 1,
+        "id_paciente" => 1,
+        "id_biologico" => 1,
         "fecha_aplicacion" => $fecha->format("Y-m-d"),
         "fecha_nacimiento" => $fecha->modify("-" . $meses . " months")->format("Y-m-d"),
         "fecha_ultima_menstruacion" => null,
@@ -33,13 +35,31 @@ function caso($nombre, $renglon, $biologico, $dosis, $meses, $cambios = [])
     $casos[] = [
         "nombre" => $nombre,
         "esperado" => $renglon,
-        "entrada" => ["aplicaciones" => [array_replace($aplicacion, $cambios)]]
+        "entrada" => [
+            "aplicaciones" => [array_replace($aplicacion, $cambios)],
+            "historialNeumococo" => $historialNeumo
+        ]
     ];
 }
 
-function fila($id, $biologico, $dosis, $meses, $cambios = [])
+function fila($id, $biologico, $dosis, $meses, $cambios = [], $historialNeumo = [])
 {
-    caso($id, $id, $biologico, $dosis, $meses, $cambios);
+    caso($id, $id, $biologico, $dosis, $meses, $cambios, $historialNeumo);
+}
+
+function historialNeumoCompleto($fechaNacimiento)
+{
+    $nacimiento = new DateTimeImmutable($fechaNacimiento);
+    return [
+        [
+            "nombre_dosis" => "Primera",
+            "fecha_aplicacion" => $nacimiento->modify("+2 months")->format("Y-m-d")
+        ],
+        [
+            "nombre_dosis" => "Segunda",
+            "fecha_aplicacion" => $nacimiento->modify("+4 months")->format("Y-m-d")
+        ]
+    ];
 }
 
 fila("bcg_24h", "BCG", "Única", 0);
@@ -78,7 +98,10 @@ foreach ([
 foreach (["neumo" => "Antineumococicaconjugada13", "neumo20" => "Neumococica20valente"] as $prefijo => $bio) {
     foreach (["Primera" => 2, "Segunda" => 4, "Tercera" => 12] as $dosis => $meses) {
         $numero = ["Primera" => 1, "Segunda" => 2, "Tercera" => 3][$dosis];
-        fila("{$prefijo}_$numero", $bio, $dosis, $meses);
+        $historial = $prefijo === "neumo" && $dosis === "Tercera"
+            ? historialNeumoCompleto("2023-05-15")
+            : [];
+        fila("{$prefijo}_$numero", $bio, $dosis, $meses, [], $historial);
         fila("{$prefijo}_rescate$numero", $bio, $dosis, 36);
     }
 }
@@ -112,14 +135,40 @@ foreach ([
 }
 foreach (["Primera", "Segunda", "Tercera"] as $i => $dosis) {
     fila("vph_vih_" . ($i + 1), "VPH", $dosis, 132, [
-        "clasificacion_vph" => "mujeres_vih", "comorbilidades" => "1"
+        "clasificacion_vph" => "personas_vih", "comorbilidades" => "1"
     ]);
 }
+foreach (["mujeres_vih", "hombres_vih"] as $clasificacion) {
+    caso("VPH clasificación anterior $clasificacion", "vph_vih_1", "VPH", "Primera", 132, [
+        "clasificacion_vph" => $clasificacion
+    ]);
+}
+caso("VPH personas con VIH requiere dosis del esquema", null, "VPH", "Única", 132, [
+    "clasificacion_vph" => "personas_vih"
+]);
 fila("varicela_unica_1", "Varicela", "Única", 12);
 fila("varicela_rezago_2_4", "Varicela", "Única", 24);
+caso("Varicela clasificación regular guardada", "varicela_unica_1", "Varicela", "Única", 23, [
+    "clasificacion_varicela_hepatitis_a" => "rutina"
+]);
+caso("Varicela clasificación rezago guardada", "varicela_rezago_2_4", "Varicela", "Única", 59, [
+    "clasificacion_varicela_hepatitis_a" => "rezago"
+]);
 fila("hepa_unica_18m", "HepatitisA", "Única", 18);
 fila("hepa_rezago_2_4", "HepatitisA", "Única", 24);
 fila("hepa_riesgo", "HepatitisA", "Única", 24, ["comorbilidades" => "2"]);
+caso("Hepatitis A con espacio a los 18 meses", "hepa_unica_18m", "Hepatitis A", "Única", 18, [
+    "clasificacion_varicela_hepatitis_a" => "rutina"
+]);
+caso("Anti Hepatitis A a los 18 meses", "hepa_unica_18m", "ANTI HEPATITIS A", "Única", 18);
+caso("Hepatitis A rezago con espacio", "hepa_rezago_2_4", "Hepatitis A", "Única", 24, [
+    "clasificacion_varicela_hepatitis_a" => "rezago"
+]);
+foreach (["rutina" => "hepa_unica_18m", "rezago" => "hepa_rezago_2_4", "riesgo" => "hepa_riesgo"] as $clasificacion => $id) {
+    caso("Hepatitis A clasificación guardada $clasificacion", $id, "HepatitisA", "Única", $clasificacion === "rezago" ? 24 : 18, [
+        "clasificacion_varicela_hepatitis_a" => $clasificacion
+    ]);
+}
 
 foreach (["Primera", "Segunda", "Tercera", "Refuerzo"] as $dosis) {
     $codigo = strtolower($dosis);
@@ -192,9 +241,26 @@ foreach (["neumo" => "ANTI NEUMOCOCO 13 VALENTE", "neumo20" => "ANTI NEUMOCOCO 2
     caso("$prefijo primera antes de 2 meses", null, $bio, "Primera", 1);
     caso("$prefijo primera a los 11 meses", "{$prefijo}_1", $bio, "Primera", 11);
     caso("$prefijo segunda a los 12 meses", "{$prefijo}_rescate2", $bio, "Segunda", 12);
-    caso("$prefijo tercera a los 23 meses", "{$prefijo}_3", $bio, "Tercera", 23);
+    $historial = $prefijo === "neumo"
+        ? historialNeumoCompleto("2022-06-15")
+        : [];
+    caso("$prefijo tercera a los 23 meses", "{$prefijo}_3", $bio, "Tercera", 23, [], $historial);
     caso("$prefijo tercera a los 24 meses", "{$prefijo}_rescate3", $bio, "Tercera", 24);
 }
+caso("Neumococo 13 tercera sin esquema completo a los 12 meses", "neumo_rescate3", "ANTI NEUMOCOCO 13 VALENTE", "Tercera", 12);
+$fechaNacimientoNeumoTardio = (new DateTimeImmutable("2024-05-15"))->modify("-18 months");
+$historialNeumoTardio = historialNeumoCompleto($fechaNacimientoNeumoTardio->format("Y-m-d"));
+$historialNeumoTardio[1]["fecha_aplicacion"] =
+    $fechaNacimientoNeumoTardio->modify("+12 months")->format("Y-m-d");
+caso(
+    "Neumococo 13 tercera con segunda dosis a los 12 meses",
+    "neumo_rescate3",
+    "ANTI NEUMOCOCO 13 VALENTE",
+    "Tercera",
+    18,
+    [],
+    $historialNeumoTardio
+);
 caso("Neumococo 23 sin riesgo antes de 60 años", null, "ANTI NEUMOCOCO 23 VALENTE", "Única", 719);
 caso("Neumococo 23 sin riesgo a los 60 años", "neumo23_60", "ANTI NEUMOCOCO 23 VALENTE", "Única", 720);
 caso("Neumococo 23 con riesgo a los 60 años", "neumo23_riesgo", "ANTI NEUMOCOCO 23 VALENTE", "Única", 720, ["comorbilidades" => "2"]);
@@ -232,6 +298,14 @@ foreach (["violencia_9_14" => "vph_violencia_9_14", "violencia_15_19" => "vph_vi
         "migrante" => true
     ];
 }
+$casos[] = [
+    "nombre" => "VPH confidencial personas con VIH",
+    "esperado" => "vph_vih_2",
+    "entrada" => ["anonimas" => [[
+        "fecha_aplicacion" => "2024-05-15", "clasificacion_vph" => "personas_vih",
+        "es_migrante" => 0, "nombre_dosis" => "Segunda"
+    ]]]
+];
 $casos[] = [
     "nombre" => "VPH confidencial con clasificación inválida",
     "esperado" => null,

@@ -70,8 +70,7 @@ function categoriasVph()
         "rezagados" => "Niñas y/o adolescentes de 12 a 16 años (rezagadas)",
         "violencia_9_14" => "Niñas y/o adolescentes víctimas de violación sexual de 9 a 14 años",
         "violencia_15_19" => "Niñas y/o adolescentes víctimas de violación sexual de 15 a 19 años",
-        "mujeres_vih" => "Mujeres cis y trans de 11 a 49 años que viven con VIH",
-        "hombres_vih" => "Hombres cis y trans de 11 a 49 años que viven con VIH"
+        "personas_vih" => "Personas de 11 a 49 años que viven con VIH"
     ];
 }
 
@@ -195,6 +194,47 @@ function asegurarClasificacionVaricelaHepatitisA($conexion)
     }
 }
 
+function asegurarClasificacionDpt($conexion)
+{
+    $stmt = $conexion->prepare(
+        "SELECT COUNT(*) AS existe
+         FROM information_schema.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE()
+           AND TABLE_NAME = 'APLICACION_VACUNA'
+           AND COLUMN_NAME = 'sin_antecedente_dpt'"
+    );
+    if (!$stmt || !$stmt->execute()) {
+        die("No fue posible verificar el antecedente vacunal de DPT.");
+    }
+    $existe = (int)$stmt->get_result()->fetch_assoc()["existe"] > 0;
+    $stmt->close();
+    if ($existe) {
+        return;
+    }
+
+    if (!$conexion->query(
+        "ALTER TABLE APLICACION_VACUNA
+         ADD COLUMN sin_antecedente_dpt TINYINT(1) NULL DEFAULT NULL
+             AFTER clasificacion_varicela_hepatitis_a"
+    )) {
+        $stmt = $conexion->prepare(
+            "SELECT COUNT(*) AS existe
+             FROM information_schema.COLUMNS
+             WHERE TABLE_SCHEMA = DATABASE()
+               AND TABLE_NAME = 'APLICACION_VACUNA'
+               AND COLUMN_NAME = 'sin_antecedente_dpt'"
+        );
+        if (!$stmt || !$stmt->execute()) {
+            die("No fue posible preparar el antecedente vacunal de DPT.");
+        }
+        $existe = (int)$stmt->get_result()->fetch_assoc()["existe"] > 0;
+        $stmt->close();
+        if (!$existe) {
+            die("No fue posible agregar el antecedente vacunal de DPT: " . $conexion->error);
+        }
+    }
+}
+
 function obtenerRenglonHepatitisB($clasificacion, $nombreDosis)
 {
     $dosis = mb_strtolower(trim((string)$nombreDosis), "UTF-8");
@@ -309,10 +349,7 @@ function obtenerRenglonVph($clasificacion, $nombreDosis, $edadMeses = null)
         return null;
     }
 
-    if ($clasificacion === "mujeres_vih") {
-        return "vph_vih_" . $sufijo;
-    }
-    if ($clasificacion === "hombres_vih") {
+    if (in_array($clasificacion, ["personas_vih", "mujeres_vih", "hombres_vih"], true)) {
         return "vph_vih_" . $sufijo;
     }
     return null;
